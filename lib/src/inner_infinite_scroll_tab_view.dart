@@ -17,7 +17,7 @@ class InnerInfiniteScrollTabView extends StatefulWidget {
     required this.pageBuilder,
     this.onTabTap,
     this.separator,
-    required this.textScaleFactor,
+    required this.textScaler,
     required this.defaultTextStyle,
     required this.textDirection,
     this.backgroundColor,
@@ -37,7 +37,7 @@ class InnerInfiniteScrollTabView extends StatefulWidget {
   final SelectIndexedWidgetBuilder pageBuilder;
   final IndexedTapCallback? onTabTap;
   final BorderSide? separator;
-  final double textScaleFactor;
+  final TextScaler textScaler;
   final TextStyle defaultTextStyle;
   final TextDirection textDirection;
   final Color? backgroundColor;
@@ -66,7 +66,7 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
   final ValueNotifier<bool> _isContentChangingByTab = ValueNotifier(false);
   bool _isTabForceScrolling = false;
 
-  late double _previousTextScaleFactor = widget.textScaleFactor;
+  late TextScaler _previousTextScaleFactor = widget.textScaler;
 
   late final ValueNotifier<double> _indicatorSize;
   final _isTabPositionAligned = ValueNotifier<bool>(true);
@@ -127,7 +127,7 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
   }
 
   @visibleForTesting
-  void calculateTabBehaviorElements(double textScaleFactor) {
+  void calculateTabBehaviorElements(TextScaler textScaler) {
     _tabTextSizes.clear();
     _tabSizesFromIndex.clear();
     _tabOffsets.clear();
@@ -144,7 +144,8 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
         text: TextSpan(text: text.data, style: style),
         maxLines: 1,
         locale: text.locale ?? widget.defaultLocale,
-        textScaleFactor: text.textScaleFactor ?? textScaleFactor,
+        // textScaleFactor: text.textScaleFactor ?? textScaleFactor,
+        textScaler: text.textScaler ?? textScaler,
         textDirection: widget.textDirection,
       )..layout();
       final calculatedWidth = layoutedText.size.width + widget.tabPadding * 2;
@@ -178,11 +179,11 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
 
   @override
   void didChangeDependencies() {
-    final textScaleFactor = MediaQuery.textScaleFactorOf(context);
-    if (_previousTextScaleFactor != textScaleFactor) {
-      _previousTextScaleFactor = textScaleFactor;
+    final textScaler = MediaQuery.textScalerOf(context);
+    if (_previousTextScaleFactor != textScaler) {
+      _previousTextScaleFactor = textScaler;
       setState(() {
-        calculateTabBehaviorElements(textScaleFactor);
+        calculateTabBehaviorElements(textScaler);
       });
     }
     super.didChangeDependencies();
@@ -192,7 +193,7 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
   void initState() {
     super.initState();
 
-    calculateTabBehaviorElements(widget.textScaleFactor);
+    calculateTabBehaviorElements(widget.textScaler);
 
     _indicatorSize = ValueNotifier(_tabTextSizes[0]);
 

@@ -126,7 +126,7 @@ void main() {
         final InnerInfiniteScrollTabViewState state =
             tester.state(find.byType(InnerInfiniteScrollTabView));
 
-        state.calculateTabBehaviorElements(1.5);
+        state.calculateTabBehaviorElements(const TextScaler.linear(1.5));
 
         final expectedSizes = [32.0, 56.0, 80.0, 104.0];
 

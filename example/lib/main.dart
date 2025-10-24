@@ -42,7 +42,7 @@ class _Content extends StatefulWidget {
 }
 
 class __ContentState extends State<_Content> {
-  final contents = List.generate(9, (index) => index + 1)..shuffle();
+  final contents = List.generate(90, (index) => index + 1)..shuffle();
 
   String _convertContent(int number) =>
       List.generate(number, (_) => '$number').join('');

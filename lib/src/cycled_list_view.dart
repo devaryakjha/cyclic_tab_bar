@@ -9,7 +9,7 @@ typedef ModuloIndexedWidgetBuilder = Widget Function(
 class CycledListView extends StatefulWidget {
   /// See [ListView.builder]
   const CycledListView.builder({
-    Key? key,
+    super.key,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
     this.controller,
@@ -27,7 +27,7 @@ class CycledListView extends StatefulWidget {
     this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
     this.restorationId,
     this.clipBehavior = Clip.hardEdge,
-  }) : super(key: key);
+  });
 
   /// See: [ScrollView.scrollDirection]
   final Axis scrollDirection;
@@ -80,10 +80,10 @@ class CycledListView extends StatefulWidget {
   final int contentCount;
 
   @override
-  _CycledListViewState createState() => _CycledListViewState();
+  CycledListViewState createState() => CycledListViewState();
 }
 
-class _CycledListViewState extends State<CycledListView> {
+class CycledListViewState extends State<CycledListView> {
   CycledScrollController? _controller;
 
   CycledScrollController get _effectiveController =>
@@ -206,14 +206,10 @@ class _CycledListViewState extends State<CycledListView> {
 class CycledScrollController extends ScrollController {
   /// Creates a new [CycledScrollController]
   CycledScrollController({
-    double initialScrollOffset = 0.0,
-    bool keepScrollOffset = true,
-    String? debugLabel,
-  }) : super(
-          initialScrollOffset: initialScrollOffset,
-          keepScrollOffset: keepScrollOffset,
-          debugLabel: debugLabel,
-        );
+    super.initialScrollOffset,
+    super.keepScrollOffset,
+    super.debugLabel,
+  });
 
   ScrollDirection get currentScrollDirection => position.userScrollDirection;
 
@@ -233,20 +229,13 @@ class CycledScrollController extends ScrollController {
 
 class _InfiniteScrollPosition extends ScrollPositionWithSingleContext {
   _InfiniteScrollPosition({
-    required ScrollPhysics physics,
-    required ScrollContext context,
-    double? initialPixels = 0.0,
-    bool keepScrollOffset = true,
-    ScrollPosition? oldPosition,
-    String? debugLabel,
-  }) : super(
-          physics: physics,
-          context: context,
-          initialPixels: initialPixels,
-          keepScrollOffset: keepScrollOffset,
-          oldPosition: oldPosition,
-          debugLabel: debugLabel,
-        );
+    required super.physics,
+    required super.context,
+    super.initialPixels,
+    super.keepScrollOffset,
+    super.oldPosition,
+    super.debugLabel,
+  });
 
   @override
   double get minScrollExtent => double.negativeInfinity;

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Flutter package that provides an infinitely scrollable tab view component. The package is published on pub.dev as `infinite_scroll_tab_view`.
+This is a Flutter package that provides a cyclic tab bar component with infinite scrolling. The package is published on pub.dev as `cyclic_tab_bar`.
 
 ## Key Commands
 
@@ -41,12 +41,12 @@ flutter pub upgrade      # Upgrade dependencies
 
 ### Core Components
 
-**InfiniteScrollTabView** (`lib/src/infinite_scroll_tab_view.dart`)
+**CyclicTabBar** (`lib/src/cyclic_tab_bar.dart`)
 - Public-facing widget that developers use
-- Wraps MediaQuery context data and passes it to InnerInfiniteScrollTabView
+- Wraps MediaQuery context data and passes it to InnerCyclicTabBar
 - Main configuration point with properties for tab/page builders, styling, callbacks
 
-**InnerInfiniteScrollTabView** (`lib/src/inner_infinite_scroll_tab_view.dart`)
+**InnerCyclicTabBar** (`lib/src/inner_cyclic_tab_bar.dart`)
 - Stateful implementation handling scroll synchronization
 - Manages two `CycledScrollController` instances (one for tabs, one for pages)
 - Calculates tab sizes dynamically using `TextPainter` to measure text dimensions
@@ -85,8 +85,8 @@ Tests verify:
 
 When testing, access internal state via:
 ```dart
-final InnerInfiniteScrollTabViewState state =
-    tester.state(find.byType(InnerInfiniteScrollTabView));
+final InnerCyclicTabBarState state =
+    tester.state(find.byType(InnerCyclicTabBar));
 ```
 
 ## Development Guidelines

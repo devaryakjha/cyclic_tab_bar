@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'inner_infinite_scroll_tab_view.dart';
+import 'inner_cyclic_tab_bar.dart';
 
 /// A type of callback to build [Widget] on specified index.
 typedef SelectIndexedWidgetBuilder = Widget Function(
@@ -12,15 +12,15 @@ typedef SelectIndexedTextBuilder = Text Function(int index, bool isSelected);
 /// A type of callback to execute processing on tapped tab.
 typedef IndexedTapCallback = void Function(int index);
 
-/// A widget for display combo of tabs and pages.
+/// A widget for cyclic tab bar with infinite scrolling.
 ///
-/// Internally, the tabs and pages will build as just Scrollable elements like
-/// `ListView`. But these have massive index range from [double.negativeInfinity]
-/// to [double.infinity], so that these can scroll infinitely.
-class InfiniteScrollTabView extends StatelessWidget {
-  /// Creates a tab view widget that can scroll infinitely.
-  const InfiniteScrollTabView({
-    Key? key,
+/// Internally, the tabs and pages are built as scrollable elements like
+/// `ListView`. But these have a massive index range from [double.negativeInfinity]
+/// to [double.infinity], so that these can scroll infinitely with wraparound.
+class CyclicTabBar extends StatelessWidget {
+  /// Creates a cyclic tab bar widget that can scroll infinitely.
+  const CyclicTabBar({
+    super.key,
     required this.contentLength,
     required this.tabBuilder,
     required this.pageBuilder,
@@ -35,7 +35,7 @@ class InfiniteScrollTabView extends StatelessWidget {
     this.size,
     this.forceFixedTabWidth = false,
     this.fixedTabWidthFraction = 0.5,
-  }) : super(key: key);
+  });
 
   /// A length of tabs and pages.
   ///
@@ -133,11 +133,28 @@ class InfiniteScrollTabView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Critical: Validate content length
+    assert(contentLength > 0, 'contentLength must be greater than 0');
+    if (contentLength <= 0) {
+      throw ArgumentError.value(
+        contentLength,
+        'contentLength',
+        'Must be greater than 0',
+      );
+    }
+
+    // Validate indicator height
     if (indicatorHeight != null) {
       assert(indicatorHeight! >= 1.0);
     }
 
-    return InnerInfiniteScrollTabView(
+    // Validate numeric parameters
+    assert(tabHeight > 0, 'tabHeight must be greater than 0');
+    assert(tabPadding >= 0, 'tabPadding must be non-negative');
+    assert(fixedTabWidthFraction > 0 && fixedTabWidthFraction <= 1.0,
+        'fixedTabWidthFraction must be between 0 and 1.0');
+
+    return InnerCyclicTabBar(
       size: MediaQuery.sizeOf(context),
       contentLength: contentLength,
       tabBuilder: tabBuilder,

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:infinite_scroll_tab_view/infinite_scroll_tab_view.dart';
+import 'package:cyclic_tab_bar/cyclic_tab_bar.dart';
 
 void main() {
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'InfiniteScrollTabView Demo',
+      title: 'CyclicTabBar Demo',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
@@ -21,13 +21,13 @@ class MyApp extends StatelessWidget {
 }
 
 class HomePage extends StatelessWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('InfiniteScrollTabView Demo'),
+        title: const Text('CyclicTabBar Demo'),
       ),
       body: const _Content(),
     );
@@ -35,7 +35,7 @@ class HomePage extends StatelessWidget {
 }
 
 class _Content extends StatefulWidget {
-  const _Content({Key? key}) : super(key: key);
+  const _Content();
 
   @override
   __ContentState createState() => __ContentState();
@@ -48,7 +48,7 @@ class __ContentState extends State<_Content> {
 
   @override
   Widget build(BuildContext context) {
-    return InfiniteScrollTabView(
+    return CyclicTabBar(
       contentLength: contents.length,
       onTabTap: (index) {
         debugPrint('tapped $index');
@@ -68,7 +68,7 @@ class __ContentState extends State<_Content> {
         return SizedBox.expand(
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha:contents[index] / 10),
+              color: Colors.green.withValues(alpha: contents[index] / 10),
             ),
             child: Center(
               child: Text(

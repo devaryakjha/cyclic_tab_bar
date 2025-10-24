@@ -1,16 +1,18 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
-import '../infinite_scroll_tab_view.dart';
+import '../cyclic_tab_bar.dart';
 import 'cycled_list_view.dart';
 
 const _tabAnimationDuration = Duration(milliseconds: 550);
 
 @visibleForTesting
-class InnerInfiniteScrollTabView extends StatefulWidget {
-  const InnerInfiniteScrollTabView({
-    Key? key,
+class InnerCyclicTabBar extends StatefulWidget {
+  const InnerCyclicTabBar({
+    super.key,
     required this.size,
     required this.contentLength,
     required this.tabBuilder,
@@ -29,7 +31,17 @@ class InnerInfiniteScrollTabView extends StatefulWidget {
     required this.tabPadding,
     required this.forceFixedTabWidth,
     required this.fixedTabWidthFraction,
-  }) : super(key: key);
+  })  : assert(contentLength > 0, 'contentLength must be greater than 0'),
+        assert(tabHeight > 0, 'tabHeight must be greater than 0'),
+        assert(tabPadding >= 0, 'tabPadding must be non-negative'),
+        assert(
+          fixedTabWidthFraction > 0 && fixedTabWidthFraction <= 1.0,
+          'fixedTabWidthFraction must be between 0 and 1.0',
+        ),
+        assert(
+          indicatorHeight == null || indicatorHeight >= 1.0,
+          'indicatorHeight must be >= 1.0 when specified',
+        );
 
   final Size size;
   final int contentLength;
@@ -51,12 +63,11 @@ class InnerInfiniteScrollTabView extends StatefulWidget {
   final double fixedTabWidthFraction;
 
   @override
-  InnerInfiniteScrollTabViewState createState() =>
-      InnerInfiniteScrollTabViewState();
+  InnerCyclicTabBarState createState() => InnerCyclicTabBarState();
 }
 
 @visibleForTesting
-class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
+class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
     with SingleTickerProviderStateMixin {
   late final _tabController = CycledScrollController(
     initialScrollOffset: centeringOffset(0),
@@ -65,6 +76,7 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
 
   final ValueNotifier<bool> _isContentChangingByTab = ValueNotifier(false);
   bool _isTabForceScrolling = false;
+  bool _isDisposed = false;
 
   late TextScaler _previousTextScaleFactor = widget.textScaler;
 
@@ -78,12 +90,12 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
   final List<double> _tabSizesFromIndex = [];
   List<double> get tabSizesFromIndex => _tabSizesFromIndex;
 
-  /// ページ側のスクロール位置をタブのスクロール位置にマッピングさせるためのTween群。
+  /// A list of Tweens for mapping page scroll positions to tab scroll positions.
   ///
-  /// begin: 該当するインデックスi_x要素のスクロール位置 + センタリング用オフセット
-  /// end: 次のインデックスi_x+1要素のスクロール位置 + センタリング用オフセット
-  /// （0 <= i < n）
-  /// ただし最後の要素の場合、endは タブ要素全体の長さ + センタリング用オフセットになる。
+  /// begin: Scroll position of the element at index i_x + centering offset
+  /// end: Scroll position of the element at next index i_x+1 + centering offset
+  /// (where 0 <= i < n)
+  /// Note: For the last element, end = total tab length + centering offset
   final List<Tween<double>> _tabOffsets = [];
   List<Tween<double>> get tabOffsets => _tabOffsets;
 
@@ -93,12 +105,7 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
   double get indicatorHeight =>
       widget.indicatorHeight ?? widget.separator?.width ?? 2.0;
 
-  late final _indicatorAnimationController =
-      AnimationController(vsync: this, duration: _tabAnimationDuration)
-        ..addListener(() {
-          if (_indicatorAnimation == null) return;
-          _indicatorSize.value = _indicatorAnimation!.value;
-        });
+  late final AnimationController _indicatorAnimationController;
   Animation<double>? _indicatorAnimation;
 
   double _totalTabSizeCache = 0.0;
@@ -128,6 +135,14 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
 
   @visibleForTesting
   void calculateTabBehaviorElements(TextScaler textScaler) {
+    // Safety check: ensure content length is valid
+    assert(widget.contentLength > 0, 'contentLength must be greater than 0');
+    if (widget.contentLength <= 0) {
+      debugPrint(
+          'Warning: calculateTabBehaviorElements called with contentLength <= 0');
+      return;
+    }
+
     _tabTextSizes.clear();
     _tabSizesFromIndex.clear();
     _tabOffsets.clear();
@@ -195,7 +210,21 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
 
     calculateTabBehaviorElements(widget.textScaler);
 
-    _indicatorSize = ValueNotifier(_tabTextSizes[0]);
+    // Safety: Initialize indicator size with safe fallback
+    _indicatorSize = ValueNotifier(
+      _tabTextSizes.isNotEmpty ? _tabTextSizes[0] : 0.0,
+    );
+
+    // Initialize animation controller
+    _indicatorAnimationController =
+        AnimationController(vsync: this, duration: _tabAnimationDuration)
+          ..addListener(() {
+            // Null-safe access to indicator animation
+            final animation = _indicatorAnimation;
+            if (animation != null) {
+              _indicatorSize.value = animation.value;
+            }
+          });
 
     _tabController.addListener(() {
       if (_isTabForceScrolling) return;
@@ -210,7 +239,8 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
 
       final currentIndexDouble = _pageController.offset / widget.size.width;
       final currentIndex = currentIndexDouble.floor();
-      final modIndex = currentIndexDouble.round() % widget.contentLength;
+      // Fix: Use floor() consistently instead of round() to prevent off-by-one errors
+      final modIndex = currentIndex % widget.contentLength;
 
       final currentIndexDecimal =
           currentIndexDouble - currentIndexDouble.floor();
@@ -229,111 +259,158 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
         widget.onPageChanged?.call(modIndex);
         _selectedIndex.value = modIndex;
         HapticFeedback.selectionClick();
+
+        // Accessibility: Announce page change to screen readers
+        if (mounted) {
+          SemanticsService.announce(
+            'Page ${modIndex + 1} of ${widget.contentLength}',
+            widget.textDirection,
+          );
+        }
       }
     });
   }
 
-  void _onTapTab(int modIndex, int rawIndex) async {
+  Future<void> _onTapTab(int modIndex, int rawIndex) async {
+    // Safety checks
+    if (_isDisposed || _isContentChangingByTab.value) return;
+
     _isContentChangingByTab.value = true;
 
-    widget.onTabTap?.call(modIndex);
-    widget.onPageChanged?.call(modIndex);
+    try {
+      widget.onTabTap?.call(modIndex);
+      widget.onPageChanged?.call(modIndex);
 
-    HapticFeedback.selectionClick();
-    _isTabPositionAligned.value = true;
+      HapticFeedback.selectionClick();
+      _isTabPositionAligned.value = true;
 
-    final sizeOnIndex = widget.forceFixedTabWidth
-        ? _fixedTabWidth * modIndex
-        : _tabSizesFromIndex[modIndex];
-    final section = rawIndex.isNegative
-        ? (rawIndex + 1) ~/ widget.contentLength - 1
-        : rawIndex ~/ widget.contentLength;
-    final targetOffset = _totalTabSize * section + sizeOnIndex;
-    _isTabForceScrolling = true;
-    _tabController
-        .animateTo(
-          targetOffset + centeringOffset(modIndex),
-          duration: _tabAnimationDuration,
-          curve: Curves.ease,
-        )
-        .then((_) => _isTabForceScrolling = false);
+      final sizeOnIndex = widget.forceFixedTabWidth
+          ? _fixedTabWidth * modIndex
+          : _tabSizesFromIndex[modIndex];
+      final section = rawIndex.isNegative
+          ? (rawIndex + 1) ~/ widget.contentLength - 1
+          : rawIndex ~/ widget.contentLength;
+      final targetOffset = _totalTabSize * section + sizeOnIndex;
+      _isTabForceScrolling = true;
 
-    _indicatorAnimation =
-        Tween(begin: _indicatorSize.value, end: _tabTextSizes[modIndex])
-            .animate(_indicatorAnimationController);
-    _indicatorAnimationController.forward(from: 0);
+      // Fire-and-forget tab animation with error handling
+      unawaited(
+        _tabController
+            .animateTo(
+              targetOffset + centeringOffset(modIndex),
+              duration: _tabAnimationDuration,
+              curve: Curves.ease,
+            )
+            .then((_) => _isTabForceScrolling = false)
+            .catchError((error) {
+          _isTabForceScrolling = false;
+          debugPrint('Tab animation error: $error');
+          return false;
+        }),
+      );
 
-    // 現在のスクロール位置とページインデックスを取得
-    final currentOffset = _pageController.offset;
+      _indicatorAnimation =
+          Tween(begin: _indicatorSize.value, end: _tabTextSizes[modIndex])
+              .animate(_indicatorAnimationController);
+      _indicatorAnimationController.forward(from: 0);
 
-    // 選択したページまでの距離を計算する
-    // modの境界をまたぐ場合を考慮して、近い方向を指すように正負を調整する
-    final move = calculateMoveIndexDistance(
-        _selectedIndex.value, modIndex, widget.contentLength);
-    final targetPageOffset = currentOffset + move * widget.size.width;
+      // Get current scroll position and page index
+      final currentOffset = _pageController.offset;
 
-    _selectedIndex.value = modIndex;
+      // Calculate distance to selected page considering wrap-around
+      final move = calculateMoveIndexDistance(
+          _selectedIndex.value, modIndex, widget.contentLength);
+      final targetPageOffset = currentOffset + move * widget.size.width;
 
-    await _pageController.animateTo(
-      targetPageOffset,
-      duration: _tabAnimationDuration,
-      curve: Curves.ease,
-    );
+      _selectedIndex.value = modIndex;
 
-    _isContentChangingByTab.value = false;
+      // Await page animation with timeout
+      await _pageController.animateTo(
+        targetPageOffset,
+        duration: _tabAnimationDuration,
+        curve: Curves.ease,
+      );
+    } catch (e) {
+      debugPrint('Error in _onTapTab: $e');
+    } finally {
+      _isContentChangingByTab.value = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Stack(
-          children: [
-            SizedBox(
-              height: widget.tabHeight + (widget.separator?.width ?? 0),
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _isContentChangingByTab,
-                builder: (context, value, _) => AbsorbPointer(
-                  absorbing: value,
-                  child: _buildTabSection(),
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+            final newIndex = (_selectedIndex.value - 1) % widget.contentLength;
+            _onTapTab(newIndex, newIndex);
+            return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+            final newIndex = (_selectedIndex.value + 1) % widget.contentLength;
+            _onTapTab(newIndex, newIndex);
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              SizedBox(
+                height: widget.tabHeight + (widget.separator?.width ?? 0),
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _isContentChangingByTab,
+                  builder: (context, value, _) => AbsorbPointer(
+                    absorbing: value,
+                    child: _buildTabSection(),
+                  ),
                 ),
               ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _isTabPositionAligned,
-                builder: (context, value, _) => Visibility(
-                  visible: value,
-                  child: _CenteredIndicator(
-                    indicatorColor: widget.indicatorColor,
-                    size: _indicatorSize,
-                    indicatorHeight: indicatorHeight,
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _isTabPositionAligned,
+                  builder: (context, value, _) => Visibility(
+                    visible: value,
+                    child: _CenteredIndicator(
+                      indicatorColor: widget.indicatorColor,
+                      size: _indicatorSize,
+                      indicatorHeight: indicatorHeight,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Expanded(
+            child: Semantics(
+              label: 'Content area',
+              child: CycledListView.builder(
+                scrollDirection: Axis.horizontal,
+                contentCount: widget.contentLength,
+                controller: _pageController,
+                physics: const PageScrollPhysics(),
+                itemBuilder: (context, modIndex, rawIndex) => SizedBox(
+                  width: widget.size.width,
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: _selectedIndex,
+                    builder: (context, value, _) => Semantics(
+                      label: 'Page ${modIndex + 1}',
+                      liveRegion: value == modIndex,
+                      child: widget.pageBuilder(
+                          context, modIndex, value == modIndex),
+                    ),
                   ),
                 ),
               ),
             ),
-          ],
-        ),
-        Expanded(
-          child: CycledListView.builder(
-            scrollDirection: Axis.horizontal,
-            contentCount: widget.contentLength,
-            controller: _pageController,
-            physics: const PageScrollPhysics(),
-            itemBuilder: (context, modIndex, rawIndex) => SizedBox(
-              width: widget.size.width,
-              child: ValueListenableBuilder<int>(
-                valueListenable: _selectedIndex,
-                builder: (context, value, _) =>
-                    widget.pageBuilder(context, modIndex, value == modIndex),
-              ),
-            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -343,27 +420,36 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
       controller: _tabController,
       contentCount: widget.contentLength,
       itemBuilder: (context, modIndex, rawIndex) {
-        final tab = Material(
-          color: widget.backgroundColor,
-          child: InkWell(
-            onTap: () => _onTapTab(modIndex, rawIndex),
-            child: ValueListenableBuilder<int>(
-              valueListenable: _selectedIndex,
-              builder: (context, index, _) => ValueListenableBuilder<bool>(
-                valueListenable: _isTabPositionAligned,
-                builder: (context, tab, _) => _TabContent(
-                  isTabPositionAligned: tab,
-                  selectedIndex: index,
-                  indicatorColor: widget.indicatorColor,
-                  tabPadding: widget.tabPadding,
-                  modIndex: modIndex,
-                  tabBuilder: widget.tabBuilder,
-                  separator: widget.separator,
-                  tabWidth: widget.forceFixedTabWidth
-                      ? _fixedTabWidth
-                      : _tabTextSizes[modIndex],
-                  indicatorHeight: indicatorHeight,
-                  indicatorWidth: _tabTextSizes[modIndex],
+        final isSelected = _selectedIndex.value == modIndex;
+
+        final tab = Semantics(
+          button: true,
+          selected: isSelected,
+          enabled: !_isDisposed,
+          label: 'Tab ${modIndex + 1} of ${widget.contentLength}',
+          hint: isSelected ? 'Currently selected' : 'Double tap to activate',
+          child: Material(
+            color: widget.backgroundColor,
+            child: InkWell(
+              onTap: () => _onTapTab(modIndex, rawIndex),
+              child: ValueListenableBuilder<int>(
+                valueListenable: _selectedIndex,
+                builder: (context, index, _) => ValueListenableBuilder<bool>(
+                  valueListenable: _isTabPositionAligned,
+                  builder: (context, tab, _) => _TabContent(
+                    isTabPositionAligned: tab,
+                    selectedIndex: index,
+                    indicatorColor: widget.indicatorColor,
+                    tabPadding: widget.tabPadding,
+                    modIndex: modIndex,
+                    tabBuilder: widget.tabBuilder,
+                    separator: widget.separator,
+                    tabWidth: widget.forceFixedTabWidth
+                        ? _fixedTabWidth
+                        : _tabTextSizes[modIndex],
+                    indicatorHeight: indicatorHeight,
+                    indicatorWidth: _tabTextSizes[modIndex],
+                  ),
                 ),
               ),
             ),
@@ -379,16 +465,22 @@ class InnerInfiniteScrollTabViewState extends State<InnerInfiniteScrollTabView>
 
   @override
   void dispose() {
+    _isDisposed = true;
     _tabController.dispose();
     _pageController.dispose();
     _indicatorAnimationController.dispose();
+    _isContentChangingByTab.dispose();
+    _isTabPositionAligned.dispose();
+    _selectedIndex.dispose();
+    _indicatorSize.dispose();
     super.dispose();
   }
 }
 
-/// 選択したページまでの距離を計算する。
+/// Calculates the distance to the selected page.
 ///
-/// modの境界をまたぐ場合を考慮して、近い方向を指すように正負を調整する。
+/// Adjusts the sign to point in the nearest direction,
+/// taking into account wrapping around mod boundaries.
 @visibleForTesting
 int calculateMoveIndexDistance(int current, int selected, int length) {
   final tabDistance = selected - current;
@@ -402,7 +494,6 @@ int calculateMoveIndexDistance(int current, int selected, int length) {
 
 class _TabContent extends StatelessWidget {
   const _TabContent({
-    Key? key,
     required this.isTabPositionAligned,
     required this.selectedIndex,
     required this.modIndex,
@@ -413,7 +504,7 @@ class _TabContent extends StatelessWidget {
     required this.indicatorHeight,
     required this.indicatorWidth,
     required this.tabWidth,
-  }) : super(key: key);
+  });
 
   final int modIndex;
   final int selectedIndex;
@@ -467,11 +558,10 @@ class _TabContent extends StatelessWidget {
 
 class _CenteredIndicator extends StatelessWidget {
   const _CenteredIndicator({
-    Key? key,
     required this.indicatorColor,
     required this.size,
     required this.indicatorHeight,
-  }) : super(key: key);
+  });
 
   final Color indicatorColor;
   final ValueNotifier<double> size;

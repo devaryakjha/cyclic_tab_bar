@@ -42,10 +42,9 @@ class _Content extends StatefulWidget {
 }
 
 class __ContentState extends State<_Content> {
-  final contents = List.generate(90, (index) => index + 1)..shuffle();
+  final contents = List.generate(25, (index) => index + 1);
 
-  String _convertContent(int number) =>
-      List.generate(number, (_) => '$number').join('');
+  String _convertContent(int number) => number.toString().padLeft(2, '0');
 
   @override
   Widget build(BuildContext context) {

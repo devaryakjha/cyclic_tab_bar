@@ -109,7 +109,7 @@ class InfiniteScrollTabView extends StatelessWidget {
 
   /// The size constraint of this widget.
   ///
-  /// If this is null, then `MediaQuery.of(context).size` is used as default.
+  /// If this is null, then `MediaQuery.sizeOf(context)` is used as default.
   /// This value should specify only in some rare case, testing or something
   /// like that.
   /// Internally this is only used for get page width, but this value determines
@@ -138,13 +138,13 @@ class InfiniteScrollTabView extends StatelessWidget {
     }
 
     return InnerInfiniteScrollTabView(
-      size: MediaQuery.of(context).size,
+      size: MediaQuery.sizeOf(context),
       contentLength: contentLength,
       tabBuilder: tabBuilder,
       pageBuilder: pageBuilder,
       onTabTap: onTabTap,
       separator: separator,
-      textScaler: MediaQuery.of(context).textScaler,
+      textScaler: MediaQuery.textScalerOf(context),
       defaultTextStyle: DefaultTextStyle.of(context).style,
       textDirection: Directionality.of(context),
       backgroundColor: backgroundColor,

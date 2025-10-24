@@ -69,12 +69,12 @@ class __ContentState extends State<_Content> {
         return SizedBox.expand(
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(contents[index] / 10),
+              color: Colors.green.withValues(alpha:contents[index] / 10),
             ),
             child: Center(
               child: Text(
                 _convertContent(contents[index]),
-                style: Theme.of(context).textTheme.headline3!.copyWith(
+                style: Theme.of(context).textTheme.headlineMedium!.copyWith(
                       color: contents[index] / 10 > 0.6
                           ? Colors.white
                           : Colors.black87,

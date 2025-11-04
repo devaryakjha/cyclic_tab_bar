@@ -540,7 +540,7 @@ class _TabContent extends StatelessWidget {
           Positioned(
             bottom: 0,
             height: indicatorHeight,
-            left: alignment == CyclicTabAlignment.left ? alignmentPadding : 0,
+            left: 0,
             right: 0,
             child: _CenteredIndicator(
               indicatorColor: indicatorColor,

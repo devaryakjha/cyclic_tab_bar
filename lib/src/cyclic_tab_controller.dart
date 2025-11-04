@@ -111,9 +111,6 @@ class CyclicTabController extends ChangeNotifier {
   /// Total size of all tabs.
   double _totalTabSize = 0.0;
 
-  /// Alignment padding (set by CyclicTabBar).
-  double _alignmentPadding = 0.0;
-
   /// Whether the controller has been initialized with tab size data.
   bool get isInitialized => _tabTextSizes.isNotEmpty;
 
@@ -187,7 +184,6 @@ class CyclicTabController extends ChangeNotifier {
     required bool forceFixedTabWidth,
     required double fixedTabWidth,
     required double totalTabSize,
-    required double alignmentPadding,
   }) {
     final wasUninitialized = !isInitialized;
 
@@ -207,7 +203,6 @@ class CyclicTabController extends ChangeNotifier {
     _forceFixedTabWidth = forceFixedTabWidth;
     _fixedTabWidth = fixedTabWidth;
     _totalTabSize = totalTabSize;
-    _alignmentPadding = alignmentPadding;
 
     // Initialize indicator size
     if (_tabTextSizes.isNotEmpty) {
@@ -383,10 +378,9 @@ class CyclicTabController extends ChangeNotifier {
   }
 
   /// Calculates the alignment offset for a given tab index.
-  /// Returns -alignmentPadding for left alignment (left inset), or a centering offset for center alignment.
   double _alignmentOffset(int index) {
     if (alignment == CyclicTabAlignment.left) {
-      return -_alignmentPadding;
+      return -0;
     }
     // Center alignment
     final tabSize = _forceFixedTabWidth ? _fixedTabWidth : _tabTextSizes[index];

@@ -106,7 +106,6 @@ class __ContentState extends State<_Content> {
             ),
             child: CyclicTabBar(
               contentLength: contents.length,
-              alignmentPadding: 16.0,
               onTabTap: (index) {
                 debugPrint('tapped $index');
               },

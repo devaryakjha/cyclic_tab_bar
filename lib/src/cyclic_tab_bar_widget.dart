@@ -46,7 +46,6 @@ class CyclicTabBar extends StatefulWidget {
     this.controller,
     this.onTabTap,
     this.tabSpacing = 0.0,
-    this.alignmentPadding = 0.0,
     @Deprecated(
         'Use bottomBorder instead. separator will be removed in a future version.')
     BorderSide? separator,
@@ -62,7 +61,6 @@ class CyclicTabBar extends StatefulWidget {
   })  : assert(contentLength > 0, 'contentLength must be greater than 0'),
         assert(tabHeight > 0, 'tabHeight must be greater than 0'),
         assert(tabPadding >= 0, 'tabPadding must be non-negative'),
-        assert(alignmentPadding >= 0, 'alignmentPadding must be non-negative'),
         assert(
           fixedTabWidthFraction > 0 && fixedTabWidthFraction <= 1.0,
           'fixedTabWidthFraction must be between 0 and 1.0',
@@ -105,22 +103,6 @@ class CyclicTabBar extends StatefulWidget {
   /// )
   /// ```
   final double tabSpacing;
-
-  /// Left padding applied when using left alignment.
-  ///
-  /// This padding only applies when [alignment] is [CyclicTabAlignment.left].
-  /// It creates space between the left edge of the screen and the first tab.
-  /// Defaults to 0 (no padding).
-  ///
-  /// Example:
-  /// ```dart
-  /// CyclicTabBar(
-  ///   alignment: CyclicTabAlignment.left,
-  ///   alignmentPadding: 16.0,
-  ///   // ... other parameters
-  /// )
-  /// ```
-  final double alignmentPadding;
 
   /// Border line displayed at the bottom of the tab bar.
   ///
@@ -203,7 +185,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
 
   double _alignmentOffset(int index) {
     if (_controller.alignment == CyclicTabAlignment.left) {
-      return -widget.alignmentPadding;
+      return 0;
     }
     // Center alignment
     final size = MediaQuery.sizeOf(context);
@@ -307,7 +289,6 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       forceFixedTabWidth: widget.forceFixedTabWidth,
       fixedTabWidth: _fixedTabWidth,
       totalTabSize: _totalTabSize,
-      alignmentPadding: widget.alignmentPadding,
     );
   }
 
@@ -393,17 +374,15 @@ class _CyclicTabBarState extends State<CyclicTabBar>
             ),
             Positioned(
               bottom: 0,
-              left: _controller.alignment == CyclicTabAlignment.left
-                  ? widget.alignmentPadding
-                  : 0,
-              right: 0,
+              left: widget.tabPadding,
+              right: widget.tabPadding,
               child: AnimatedBuilder(
                 animation: _controller,
                 builder: (context, _) => Visibility(
                   visible: _controller.isTabPositionAligned,
                   child: _CenteredIndicator(
                     indicatorColor: widget.indicatorColor,
-                    size: _controller.indicatorSize,
+                    size: _controller.indicatorSize - (widget.tabPadding * 2),
                     indicatorHeight: _indicatorHeight,
                     alignment: _controller.alignment,
                     maxWidth: widget.maxIndicatorWidth,
@@ -448,7 +427,6 @@ class _CyclicTabBarState extends State<CyclicTabBar>
                   modIndex: modIndex,
                   tabBuilder: widget.tabBuilder,
                   alignment: _controller.alignment,
-                  alignmentPadding: widget.alignmentPadding,
                   bottomBorder: effectiveBottomBorder,
                   tabWidth: widget.forceFixedTabWidth
                       ? _fixedTabWidth
@@ -496,7 +474,6 @@ class _TabContent extends StatelessWidget {
     required this.indicatorColor,
     required this.tabBuilder,
     required this.alignment,
-    required this.alignmentPadding,
     this.bottomBorder,
     required this.indicatorHeight,
     required this.indicatorWidth,
@@ -511,7 +488,6 @@ class _TabContent extends StatelessWidget {
   final Color indicatorColor;
   final SelectIndexedTextBuilder tabBuilder;
   final CyclicTabAlignment alignment;
-  final double alignmentPadding;
   final BorderSide? bottomBorder;
   final double indicatorHeight;
   final double indicatorWidth;
@@ -540,12 +516,12 @@ class _TabContent extends StatelessWidget {
           Positioned(
             bottom: 0,
             height: indicatorHeight,
-            left: 0,
-            right: 0,
+            left: tabPadding,
+            right: tabPadding,
             child: _CenteredIndicator(
               indicatorColor: indicatorColor,
               indicatorHeight: indicatorHeight,
-              size: indicatorWidth,
+              size: indicatorWidth - (tabPadding * 2),
               alignment: alignment,
               maxWidth: maxIndicatorWidth,
             ),

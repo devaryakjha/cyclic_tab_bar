@@ -85,7 +85,7 @@ class __ContentState extends State<_Content> {
                   fontSize: 18,
                 ),
               ),
-              separator: const BorderSide(color: Colors.black12, width: 2.0),
+              bottomBorder: const BorderSide(color: Colors.black12, width: 2.0),
               indicatorColor: Colors.pink,
             ),
           ),

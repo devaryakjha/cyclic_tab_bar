@@ -30,6 +30,32 @@ class CycledListView extends StatefulWidget {
     this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
     this.restorationId,
     this.clipBehavior = Clip.hardEdge,
+  }) : separatorBuilder = null;
+
+  /// Creates a scrollable, linear array of widgets that are separated by separator widgets.
+  ///
+  /// Similar to [ListView.separated], but with infinite scrolling support.
+  /// Separators appear between all items, including at the wrap-around boundary.
+  const CycledListView.separated({
+    super.key,
+    this.scrollDirection = Axis.vertical,
+    this.reverse = false,
+    this.controller,
+    this.physics,
+    this.padding,
+    required this.itemBuilder,
+    required this.separatorBuilder,
+    required this.contentCount,
+    this.itemCount,
+    this.addAutomaticKeepAlives = true,
+    this.addRepaintBoundaries = true,
+    this.addSemanticIndexes = true,
+    this.cacheExtent,
+    this.anchor = 0.0,
+    this.dragStartBehavior = DragStartBehavior.start,
+    this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
+    this.restorationId,
+    this.clipBehavior = Clip.hardEdge,
   });
 
   /// See: [ScrollView.scrollDirection]
@@ -49,6 +75,13 @@ class CycledListView extends StatefulWidget {
 
   /// See: [ListView.builder]
   final ModuloIndexedWidgetBuilder itemBuilder;
+
+  /// Called to build separators between items.
+  ///
+  /// Only used when constructed with [CycledListView.separated].
+  /// The separator builder receives both the modulo index (0 to contentCount-1)
+  /// and the raw index for flexibility in building different separators.
+  final ModuloIndexedWidgetBuilder? separatorBuilder;
 
   /// See: [SliverChildBuilderDelegate.childCount]
   final int? itemCount;
@@ -161,6 +194,30 @@ class CycledListViewState extends State<CycledListView> {
 
   SliverChildDelegate get positiveChildrenDelegate {
     final itemCount = widget.itemCount;
+    final separatorBuilder = widget.separatorBuilder;
+
+    if (separatorBuilder != null) {
+      // For separated list, we need items + separators
+      final childCount = itemCount != null ? (2 * itemCount - 1) : null;
+      return SliverChildBuilderDelegate(
+        (context, index) {
+          final itemIndex = index ~/ 2;
+          if (index.isEven) {
+            // Build item
+            return widget.itemBuilder(
+                context, itemIndex % widget.contentCount, itemIndex);
+          } else {
+            // Build separator - map to the item it follows
+            return separatorBuilder(
+                context, itemIndex % widget.contentCount, itemIndex);
+          }
+        },
+        childCount: childCount,
+        addAutomaticKeepAlives: widget.addAutomaticKeepAlives,
+        addRepaintBoundaries: widget.addRepaintBoundaries,
+      );
+    }
+
     return SliverChildBuilderDelegate(
       (context, index) {
         return widget.itemBuilder(context, index % widget.contentCount, index);
@@ -173,6 +230,31 @@ class CycledListViewState extends State<CycledListView> {
 
   SliverChildDelegate get negativeChildrenDelegate {
     final itemCount = widget.itemCount;
+    final separatorBuilder = widget.separatorBuilder;
+
+    if (separatorBuilder != null) {
+      // For separated list, we need items + separators
+      final childCount = itemCount != null ? (2 * itemCount - 1) : null;
+      return SliverChildBuilderDelegate(
+        (context, index) {
+          if (index == 0) return const SizedBox.shrink();
+          final itemIndex = index ~/ 2;
+          if (index.isEven) {
+            // Build item
+            return widget.itemBuilder(
+                context, -itemIndex % widget.contentCount, -itemIndex);
+          } else {
+            // Build separator - map to the item it follows
+            return separatorBuilder(
+                context, -itemIndex % widget.contentCount, -itemIndex);
+          }
+        },
+        childCount: childCount,
+        addAutomaticKeepAlives: widget.addAutomaticKeepAlives,
+        addRepaintBoundaries: widget.addRepaintBoundaries,
+      );
+    }
+
     return SliverChildBuilderDelegate(
       (context, index) {
         if (index == 0) return const SizedBox.shrink();

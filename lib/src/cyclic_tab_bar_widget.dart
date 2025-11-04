@@ -45,7 +45,10 @@ class CyclicTabBar extends StatefulWidget {
     required this.tabBuilder,
     this.controller,
     this.onTabTap,
-    this.separator,
+    this.tabSeparatorBuilder,
+    @Deprecated('Use bottomBorder instead. separator will be removed in a future version.')
+    BorderSide? separator,
+    BorderSide? bottomBorder,
     this.backgroundColor,
     this.indicatorColor = Colors.blueAccent,
     this.indicatorHeight,
@@ -63,7 +66,7 @@ class CyclicTabBar extends StatefulWidget {
         assert(
           indicatorHeight == null || indicatorHeight >= 1.0,
           'indicatorHeight must be >= 1.0 when specified',
-        );
+        ), bottomBorder = bottomBorder ?? separator;
 
   /// The total number of tabs.
   final int contentLength;
@@ -83,8 +86,24 @@ class CyclicTabBar extends StatefulWidget {
   /// Callback when a tab is tapped.
   final IndexedTapCallback? onTabTap;
 
-  /// Border separator between tabs and content.
-  final BorderSide? separator;
+  /// Builder for separators between tabs.
+  ///
+  /// If provided, the tab bar will display separators between each tab.
+  /// The builder receives both the modulo index (0 to [contentLength] - 1)
+  /// and the raw index for flexibility.
+  ///
+  /// Example:
+  /// ```dart
+  /// tabSeparatorBuilder: (context, modIndex, rawIndex) => Container(
+  ///   width: 1,
+  ///   color: Colors.grey,
+  /// ),
+  /// ```
+  final ModuloIndexedWidgetBuilder? tabSeparatorBuilder;
+
+  /// Border line displayed at the bottom of the tab bar.
+  ///
+  final BorderSide? bottomBorder;
 
   /// Background color of the tab bar.
   final Color? backgroundColor;
@@ -94,7 +113,7 @@ class CyclicTabBar extends StatefulWidget {
 
   /// Height of the selection indicator.
   ///
-  /// If null, uses [separator] width, or defaults to 2.0.
+  /// If null, uses [bottomBorder] width, or defaults to 2.0.
   final double? indicatorHeight;
 
   /// Height of the tab bar.
@@ -147,7 +166,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
   }
 
   double get _indicatorHeight =>
-      widget.indicatorHeight ?? widget.separator?.width ?? 2.0;
+      widget.indicatorHeight ?? widget.bottomBorder?.width ?? 2.0;
 
   double get _fixedTabWidth {
     final size = MediaQuery.sizeOf(context);
@@ -316,7 +335,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
         child: Stack(
           children: [
             SizedBox(
-              height: widget.tabHeight + (widget.separator?.width ?? 0),
+              height: widget.tabHeight + (widget.bottomBorder?.width ?? 0),
               child: AnimatedBuilder(
                 animation: _controller,
                 builder: (context, _) => AbsorbPointer(
@@ -352,53 +371,67 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       return const SizedBox.shrink();
     }
 
+    // Use the effective bottom border (bottomBorder takes precedence over deprecated separator)
+    final effectiveBottomBorder = widget.bottomBorder;
+
+    Widget buildTab(BuildContext context, int modIndex, int rawIndex) {
+      return AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final isSelected = _controller.index == modIndex;
+
+          final tab = Semantics(
+            button: true,
+            selected: isSelected,
+            label: 'Tab ${modIndex + 1} of ${widget.contentLength}',
+            hint: isSelected ? 'Currently selected' : 'Double tap to activate',
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: () => _onTabTap(modIndex, rawIndex),
+                child: _TabContent(
+                  isTabPositionAligned: _controller.isTabPositionAligned,
+                  selectedIndex: _controller.index,
+                  indicatorColor: widget.indicatorColor,
+                  tabPadding: widget.tabPadding,
+                  modIndex: modIndex,
+                  tabBuilder: widget.tabBuilder,
+                  bottomBorder: effectiveBottomBorder,
+                  tabWidth: widget.forceFixedTabWidth
+                      ? _fixedTabWidth
+                      : (_tabTextSizes.isNotEmpty
+                          ? _tabTextSizes[modIndex]
+                          : 0),
+                  indicatorHeight: _indicatorHeight,
+                  indicatorWidth:
+                      _tabTextSizes.isNotEmpty ? _tabTextSizes[modIndex] : 0,
+                ),
+              ),
+            ),
+          );
+
+          return widget.forceFixedTabWidth
+              ? SizedBox(width: _fixedTabWidth, child: tab)
+              : tab;
+        },
+      );
+    }
+
+    if (widget.tabSeparatorBuilder != null) {
+      return CycledListView.separated(
+        scrollDirection: Axis.horizontal,
+        controller: _controller.tabScrollController,
+        contentCount: widget.contentLength,
+        itemBuilder: buildTab,
+        separatorBuilder: widget.tabSeparatorBuilder!,
+      );
+    }
+
     return CycledListView.builder(
       scrollDirection: Axis.horizontal,
       controller: _controller.tabScrollController,
       contentCount: widget.contentLength,
-      itemBuilder: (context, modIndex, rawIndex) {
-        return AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            final isSelected = _controller.index == modIndex;
-
-            final tab = Semantics(
-              button: true,
-              selected: isSelected,
-              label: 'Tab ${modIndex + 1} of ${widget.contentLength}',
-              hint:
-                  isSelected ? 'Currently selected' : 'Double tap to activate',
-              child: Material(
-                type: MaterialType.transparency,
-                child: InkWell(
-                  onTap: () => _onTabTap(modIndex, rawIndex),
-                  child: _TabContent(
-                    isTabPositionAligned: _controller.isTabPositionAligned,
-                    selectedIndex: _controller.index,
-                    indicatorColor: widget.indicatorColor,
-                    tabPadding: widget.tabPadding,
-                    modIndex: modIndex,
-                    tabBuilder: widget.tabBuilder,
-                    separator: widget.separator,
-                    tabWidth: widget.forceFixedTabWidth
-                        ? _fixedTabWidth
-                        : (_tabTextSizes.isNotEmpty
-                            ? _tabTextSizes[modIndex]
-                            : 0),
-                    indicatorHeight: _indicatorHeight,
-                    indicatorWidth:
-                        _tabTextSizes.isNotEmpty ? _tabTextSizes[modIndex] : 0,
-                  ),
-                ),
-              ),
-            );
-
-            return widget.forceFixedTabWidth
-                ? SizedBox(width: _fixedTabWidth, child: tab)
-                : tab;
-          },
-        );
-      },
+      itemBuilder: buildTab,
     );
   }
 
@@ -417,7 +450,7 @@ class _TabContent extends StatelessWidget {
     required this.tabPadding,
     required this.indicatorColor,
     required this.tabBuilder,
-    this.separator,
+    this.bottomBorder,
     required this.indicatorHeight,
     required this.indicatorWidth,
     required this.tabWidth,
@@ -429,7 +462,7 @@ class _TabContent extends StatelessWidget {
   final double tabPadding;
   final Color indicatorColor;
   final SelectIndexedTextBuilder tabBuilder;
-  final BorderSide? separator;
+  final BorderSide? bottomBorder;
   final double indicatorHeight;
   final double indicatorWidth;
   final double tabWidth;
@@ -443,7 +476,7 @@ class _TabContent extends StatelessWidget {
           width: tabWidth,
           padding: EdgeInsets.symmetric(horizontal: tabPadding),
           decoration: BoxDecoration(
-            border: Border(bottom: separator ?? BorderSide.none),
+            border: Border(bottom: bottomBorder ?? BorderSide.none),
           ),
           child: Center(
             child: FittedBox(

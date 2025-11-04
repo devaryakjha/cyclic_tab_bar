@@ -78,6 +78,9 @@ flutter pub upgrade      # Upgrade dependencies
 - Uses custom `CycledScrollController` and `_InfiniteScrollPosition`
 - Renders items in both positive and negative directions from center
 - Modulo arithmetic maps infinite index space to finite content: `index % contentCount`
+- Supports two constructors:
+  - `.builder()` - Standard item builder without separators
+  - `.separated()` - Item builder with separator widgets between items (similar to `ListView.separated`)
 
 ### Legacy Components
 
@@ -129,6 +132,9 @@ Tests verify:
 - `calculateMoveIndexDistance` correctly handles wrapping in both directions
 - Programmatic navigation via controller
 - Tab and page synchronization
+- Separator functionality in both tabs and pages
+- Modulo index mapping for separators
+- Backward compatibility with deprecated `separator` parameter (now `bottomBorder`)
 
 When testing widgets:
 ```dart
@@ -211,6 +217,40 @@ Container(
 )
 ```
 
+### Tab Separators
+```dart
+CyclicTabBar(
+  contentLength: 10,
+  tabBuilder: (index, _) => Text('Tab $index'),
+  tabSeparatorBuilder: (context, modIndex, rawIndex) => Container(
+    width: 1,
+    height: double.infinity,
+    color: Colors.grey,
+  ),
+)
+```
+
+### Page Separators
+```dart
+CyclicTabBarView(
+  contentLength: 10,
+  pageBuilder: (context, index, _) => Center(child: Text('Page $index')),
+  separatorBuilder: (context, modIndex, rawIndex) => Container(
+    width: 2,
+    color: Colors.grey.shade300,
+  ),
+)
+```
+
+### Bottom Border (replaces deprecated `separator`)
+```dart
+CyclicTabBar(
+  contentLength: 10,
+  tabBuilder: (index, _) => Text('Tab $index'),
+  bottomBorder: BorderSide(color: Colors.grey, width: 2),
+)
+```
+
 ## Package Exports
 
 The main export file (`lib/cyclic_tab_bar.dart`) exports:
@@ -218,5 +258,35 @@ The main export file (`lib/cyclic_tab_bar.dart`) exports:
 - `DefaultCyclicTabController` - Convenience wrapper
 - `CyclicTabBar` - Tab bar widget
 - `CyclicTabBarView` - Page view widget
-- Type definitions: `SelectIndexedWidgetBuilder`, `SelectIndexedTextBuilder`, `IndexedTapCallback`
-- Utilities: `CycledScrollController`, `calculateMoveIndexDistance`
+- Type definitions: `SelectIndexedWidgetBuilder`, `SelectIndexedTextBuilder`, `IndexedTapCallback`, `ModuloIndexedWidgetBuilder`
+- Utilities: `CycledScrollController`, `calculateMoveIndexDistance`, `CycledListView`
+
+## Separator Feature Details
+
+### Overview
+As of the latest version, the package supports separators between tabs and pages, similar to Flutter's `ListView.separated`.
+
+### Implementation Details
+
+**CycledListView separators:**
+- Uses even/odd index logic: even indices = items, odd indices = separators
+- Child count becomes `2 * itemCount - 1` when separators are enabled
+- Works in both positive and negative scroll directions
+- Separators appear at wrap-around boundaries (between last and first item)
+- Separator builder receives both `modIndex` and `rawIndex` for flexibility
+
+**Tab separators (`CyclicTabBar.tabSeparatorBuilder`):**
+- Vertical dividers between tabs in the horizontal tab bar
+- Useful for creating visual separation between tab items
+- Does not affect the bottom border (controlled separately by `bottomBorder`)
+
+**Page separators (`CyclicTabBarView.separatorBuilder`):**
+- Vertical dividers between pages in the horizontal page view
+- Typically thin colored containers
+- Can be used for visual spacing or decorative purposes
+
+### Deprecation Notice
+The `separator` parameter in `CyclicTabBar` has been deprecated in favor of `bottomBorder` to avoid confusion:
+- Old: `separator: BorderSide(...)` - applies bottom border to tab bar
+- New: `bottomBorder: BorderSide(...)` - clearer naming
+- The old parameter still works but will be removed in a future version

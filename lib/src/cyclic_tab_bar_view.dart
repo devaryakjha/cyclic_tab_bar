@@ -41,6 +41,7 @@ class CyclicTabBarView extends StatefulWidget {
     this.controller,
     this.scrollPhysics = const PageScrollPhysics(),
     this.onPageChanged,
+    this.separatorBuilder,
   }) : assert(contentLength > 0, 'contentLength must be greater than 0');
 
   /// The total number of pages.
@@ -62,6 +63,23 @@ class CyclicTabBarView extends StatefulWidget {
 
   /// Callback when the page changes.
   final ValueChanged<int>? onPageChanged;
+
+  /// Builder for separators between pages.
+  ///
+  /// If provided, separators will be displayed between each page.
+  /// The builder receives both the modulo index (0 to [contentLength] - 1)
+  /// and the raw index for flexibility.
+  ///
+  /// Note: Separators appear as vertical dividers between full-width pages.
+  ///
+  /// Example:
+  /// ```dart
+  /// separatorBuilder: (context, modIndex, rawIndex) => Container(
+  ///   width: 2,
+  ///   color: Colors.grey.shade300,
+  /// ),
+  /// ```
+  final ModuloIndexedWidgetBuilder? separatorBuilder;
 
   @override
   State<CyclicTabBarView> createState() => _CyclicTabBarViewState();
@@ -131,6 +149,37 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
 
+    Widget buildPage(BuildContext context, int modIndex, int rawIndex) {
+      return SizedBox(
+        width: size.width,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final isSelected = _controller.index == modIndex;
+            return Semantics(
+              label: 'Page ${modIndex + 1}',
+              liveRegion: isSelected,
+              child: widget.pageBuilder(context, modIndex, isSelected),
+            );
+          },
+        ),
+      );
+    }
+
+    if (widget.separatorBuilder != null) {
+      return Semantics(
+        label: 'Content area',
+        child: CycledListView.separated(
+          scrollDirection: Axis.horizontal,
+          contentCount: widget.contentLength,
+          controller: _controller.pageScrollController,
+          physics: widget.scrollPhysics,
+          itemBuilder: buildPage,
+          separatorBuilder: widget.separatorBuilder!,
+        ),
+      );
+    }
+
     return Semantics(
       label: 'Content area',
       child: CycledListView.builder(
@@ -138,20 +187,7 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
         contentCount: widget.contentLength,
         controller: _controller.pageScrollController,
         physics: widget.scrollPhysics,
-        itemBuilder: (context, modIndex, rawIndex) => SizedBox(
-          width: size.width,
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              final isSelected = _controller.index == modIndex;
-              return Semantics(
-                label: 'Page ${modIndex + 1}',
-                liveRegion: isSelected,
-                child: widget.pageBuilder(context, modIndex, isSelected),
-              );
-            },
-          ),
-        ),
+        itemBuilder: buildPage,
       ),
     );
   }

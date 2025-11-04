@@ -1,5 +1,6 @@
 // Core components
-export './src/cyclic_tab_controller.dart' show CyclicTabController;
+export './src/cyclic_tab_controller.dart'
+    show CyclicTabController, CyclicTabAlignment;
 export './src/default_cyclic_tab_controller.dart'
     show DefaultCyclicTabController;
 export './src/cyclic_tab_bar_widget.dart' show CyclicTabBar;

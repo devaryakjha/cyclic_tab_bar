@@ -34,12 +34,14 @@ class DefaultCyclicTabController extends StatefulWidget {
   ///
   /// The [contentLength] must be greater than zero.
   /// The [initialIndex] must be between 0 and [contentLength] - 1.
+  /// The [alignment] determines how tabs are positioned (default: center).
   const DefaultCyclicTabController({
     super.key,
     required this.contentLength,
     required this.child,
     this.initialIndex = 0,
     this.animationDuration = const Duration(milliseconds: 550),
+    this.alignment = CyclicTabAlignment.center,
   })  : assert(contentLength > 0, 'contentLength must be greater than 0'),
         assert(
           initialIndex >= 0,
@@ -57,6 +59,9 @@ class DefaultCyclicTabController extends StatefulWidget {
 
   /// The duration of animations when switching tabs.
   final Duration animationDuration;
+
+  /// The alignment of tabs within the viewport.
+  final CyclicTabAlignment alignment;
 
   /// Returns the [CyclicTabController] from the closest [DefaultCyclicTabController]
   /// ancestor.
@@ -104,6 +109,7 @@ class _DefaultCyclicTabControllerState extends State<DefaultCyclicTabController>
       contentLength: widget.contentLength,
       initialIndex: widget.initialIndex,
       animationDuration: widget.animationDuration,
+      alignment: widget.alignment,
       vsync: this,
     );
   }
@@ -119,6 +125,7 @@ class _DefaultCyclicTabControllerState extends State<DefaultCyclicTabController>
         contentLength: widget.contentLength,
         initialIndex: widget.initialIndex.clamp(0, widget.contentLength - 1),
         animationDuration: widget.animationDuration,
+        alignment: widget.alignment,
         vsync: this,
       );
     }

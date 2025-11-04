@@ -730,4 +730,152 @@ void main() {
       expect(find.byType(CyclicTabBar), findsOneWidget);
     });
   });
+
+  group('Tab Alignment', () {
+    testWidgets('Should support left alignment', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DefaultCyclicTabController(
+              contentLength: 5,
+              alignment: CyclicTabAlignment.left,
+              child: Column(
+                children: [
+                  CyclicTabBar(
+                    contentLength: 5,
+                    tabBuilder: (index, _) => Text('Tab $index'),
+                  ),
+                  Expanded(
+                    child: CyclicTabBarView(
+                      contentLength: 5,
+                      pageBuilder: (_, index, __) =>
+                          Center(child: Text('Page $index')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify widgets built successfully
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.byType(CyclicTabBarView), findsOneWidget);
+      expect(find.text('Tab 0'), findsWidgets);
+      expect(find.text('Page 0'), findsWidgets);
+    });
+
+    testWidgets('Should support center alignment (default)', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DefaultCyclicTabController(
+              contentLength: 5,
+              alignment: CyclicTabAlignment.center,
+              child: Column(
+                children: [
+                  CyclicTabBar(
+                    contentLength: 5,
+                    tabBuilder: (index, _) => Text('Tab $index'),
+                  ),
+                  Expanded(
+                    child: CyclicTabBarView(
+                      contentLength: 5,
+                      pageBuilder: (_, index, __) =>
+                          Center(child: Text('Page $index')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify widgets built successfully
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.byType(CyclicTabBarView), findsOneWidget);
+      expect(find.text('Tab 0'), findsWidgets);
+      expect(find.text('Page 0'), findsWidgets);
+    });
+
+    testWidgets('Should use center alignment by default', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DefaultCyclicTabController(
+              contentLength: 5,
+              child: Column(
+                children: [
+                  CyclicTabBar(
+                    contentLength: 5,
+                    tabBuilder: (index, _) => Text('Tab $index'),
+                  ),
+                  Expanded(
+                    child: CyclicTabBarView(
+                      contentLength: 5,
+                      pageBuilder: (_, index, __) =>
+                          Center(child: Text('Page $index')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify widgets built successfully with default alignment
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.byType(CyclicTabBarView), findsOneWidget);
+    });
+
+    testWidgets('Should work with explicit controller and left alignment',
+        (tester) async {
+      final controller = CyclicTabController(
+        contentLength: 5,
+        alignment: CyclicTabAlignment.left,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 5,
+                  controller: controller,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 5,
+                    controller: controller,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify widgets built successfully
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.byType(CyclicTabBarView), findsOneWidget);
+
+      // Clean up
+      controller.dispose();
+    });
+  });
 }

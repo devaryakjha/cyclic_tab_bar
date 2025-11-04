@@ -4,6 +4,15 @@ import 'package:meta/meta.dart';
 
 import '../cyclic_tab_bar.dart';
 
+/// The alignment of tabs within the viewport.
+enum CyclicTabAlignment {
+  /// Tabs are aligned to the left edge of the viewport.
+  left,
+
+  /// Tabs are centered within the viewport (default).
+  center,
+}
+
 /// A controller for coordinating the selection of tabs and pages in a
 /// [CyclicTabBar] and [CyclicTabBarView].
 ///
@@ -17,10 +26,12 @@ class CyclicTabController extends ChangeNotifier {
   ///
   /// The [contentLength] must be greater than zero.
   /// The [initialIndex] must be between 0 and [contentLength] - 1.
+  /// The [alignment] determines how tabs are positioned (default: center).
   CyclicTabController({
     required this.contentLength,
     int initialIndex = 0,
     this.animationDuration = const Duration(milliseconds: 550),
+    this.alignment = CyclicTabAlignment.center,
     TickerProvider? vsync,
   })  : assert(contentLength > 0, 'contentLength must be greater than 0'),
         assert(
@@ -47,6 +58,9 @@ class CyclicTabController extends ChangeNotifier {
 
   /// The duration of the animation when switching tabs.
   final Duration animationDuration;
+
+  /// The alignment of tabs within the viewport.
+  final CyclicTabAlignment alignment;
 
   /// The currently selected tab index (0-indexed, modulo [contentLength]).
   int get index => _selectedIndex;
@@ -96,6 +110,9 @@ class CyclicTabController extends ChangeNotifier {
 
   /// Total size of all tabs.
   double _totalTabSize = 0.0;
+
+  /// Alignment padding (set by CyclicTabBar).
+  double _alignmentPadding = 0.0;
 
   /// Whether the controller has been initialized with tab size data.
   bool get isInitialized => _tabTextSizes.isNotEmpty;
@@ -170,6 +187,7 @@ class CyclicTabController extends ChangeNotifier {
     required bool forceFixedTabWidth,
     required double fixedTabWidth,
     required double totalTabSize,
+    required double alignmentPadding,
   }) {
     final wasUninitialized = !isInitialized;
 
@@ -189,6 +207,7 @@ class CyclicTabController extends ChangeNotifier {
     _forceFixedTabWidth = forceFixedTabWidth;
     _fixedTabWidth = fixedTabWidth;
     _totalTabSize = totalTabSize;
+    _alignmentPadding = alignmentPadding;
 
     // Initialize indicator size
     if (_tabTextSizes.isNotEmpty) {
@@ -284,7 +303,7 @@ class CyclicTabController extends ChangeNotifier {
       unawaited(
         _tabScrollController
             .animateTo(
-              targetOffset + _centeringOffset(modIndex),
+              targetOffset + _alignmentOffset(modIndex),
               duration: animationDuration,
               curve: Curves.ease,
             )
@@ -363,8 +382,13 @@ class CyclicTabController extends ChangeNotifier {
     }
   }
 
-  /// Calculates the centering offset for a given tab index.
-  double _centeringOffset(int index) {
+  /// Calculates the alignment offset for a given tab index.
+  /// Returns -alignmentPadding for left alignment (left inset), or a centering offset for center alignment.
+  double _alignmentOffset(int index) {
+    if (alignment == CyclicTabAlignment.left) {
+      return -_alignmentPadding;
+    }
+    // Center alignment
     final tabSize = _forceFixedTabWidth ? _fixedTabWidth : _tabTextSizes[index];
     return -(_size.width - tabSize) / 2;
   }
@@ -374,7 +398,7 @@ class CyclicTabController extends ChangeNotifier {
     final sizeOnIndex = _forceFixedTabWidth
         ? _fixedTabWidth * modIndex
         : _tabSizesFromIndex[modIndex];
-    return sizeOnIndex + _centeringOffset(modIndex);
+    return sizeOnIndex + _alignmentOffset(modIndex);
   }
 
   /// Calculates the page scroll offset for a given index.

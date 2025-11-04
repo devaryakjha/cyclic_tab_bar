@@ -43,6 +43,7 @@ class _Content extends StatefulWidget {
 
 class __ContentState extends State<_Content> {
   final contents = List.generate(25, (index) => index + 1);
+  CyclicTabAlignment _alignment = CyclicTabAlignment.center;
 
   String _convertContent(int number) => number.toString().padLeft(2, '0');
 
@@ -51,8 +52,39 @@ class __ContentState extends State<_Content> {
     return DefaultCyclicTabController(
       contentLength: contents.length,
       initialIndex: 0, // Can be any valid index (0 to contentLength-1)
+      alignment: _alignment,
       child: Column(
         children: [
+          // Alignment toggle
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Alignment: '),
+                SegmentedButton<CyclicTabAlignment>(
+                  segments: const [
+                    ButtonSegment(
+                      value: CyclicTabAlignment.left,
+                      label: Text('Left'),
+                      icon: Icon(Icons.align_horizontal_left),
+                    ),
+                    ButtonSegment(
+                      value: CyclicTabAlignment.center,
+                      label: Text('Center'),
+                      icon: Icon(Icons.align_horizontal_center),
+                    ),
+                  ],
+                  selected: {_alignment},
+                  onSelectionChanged: (Set<CyclicTabAlignment> selected) {
+                    setState(() {
+                      _alignment = selected.first;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
           // Wrapped tab bar with custom decoration
           Container(
             decoration: BoxDecoration(
@@ -74,6 +106,7 @@ class __ContentState extends State<_Content> {
             ),
             child: CyclicTabBar(
               contentLength: contents.length,
+              alignmentPadding: 16.0,
               onTabTap: (index) {
                 debugPrint('tapped $index');
               },

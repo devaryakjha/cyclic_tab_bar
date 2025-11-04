@@ -46,6 +46,7 @@ class CyclicTabBar extends StatefulWidget {
     this.controller,
     this.onTabTap,
     this.tabSpacing = 0.0,
+    this.alignmentPadding = 0.0,
     @Deprecated(
         'Use bottomBorder instead. separator will be removed in a future version.')
     BorderSide? separator,
@@ -61,6 +62,7 @@ class CyclicTabBar extends StatefulWidget {
   })  : assert(contentLength > 0, 'contentLength must be greater than 0'),
         assert(tabHeight > 0, 'tabHeight must be greater than 0'),
         assert(tabPadding >= 0, 'tabPadding must be non-negative'),
+        assert(alignmentPadding >= 0, 'alignmentPadding must be non-negative'),
         assert(
           fixedTabWidthFraction > 0 && fixedTabWidthFraction <= 1.0,
           'fixedTabWidthFraction must be between 0 and 1.0',
@@ -103,6 +105,22 @@ class CyclicTabBar extends StatefulWidget {
   /// )
   /// ```
   final double tabSpacing;
+
+  /// Left padding applied when using left alignment.
+  ///
+  /// This padding only applies when [alignment] is [CyclicTabAlignment.left].
+  /// It creates space between the left edge of the screen and the first tab.
+  /// Defaults to 0 (no padding).
+  ///
+  /// Example:
+  /// ```dart
+  /// CyclicTabBar(
+  ///   alignment: CyclicTabAlignment.left,
+  ///   alignmentPadding: 16.0,
+  ///   // ... other parameters
+  /// )
+  /// ```
+  final double alignmentPadding;
 
   /// Border line displayed at the bottom of the tab bar.
   ///
@@ -183,7 +201,11 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     return size.width * widget.fixedTabWidthFraction;
   }
 
-  double _centeringOffset(int index) {
+  double _alignmentOffset(int index) {
+    if (_controller.alignment == CyclicTabAlignment.left) {
+      return -widget.alignmentPadding;
+    }
+    // Center alignment
     final size = MediaQuery.sizeOf(context);
     final tabSize =
         widget.forceFixedTabWidth ? _fixedTabWidth : _tabTextSizes[index];
@@ -256,14 +278,14 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       if (widget.forceFixedTabWidth) {
         // Account for spacing in fixed width mode
         final tabAndSpaceWidth = _fixedTabWidth + widget.tabSpacing;
-        final offsetBegin = tabAndSpaceWidth * i + _centeringOffset(i);
-        final offsetEnd = tabAndSpaceWidth * (i + 1) + _centeringOffset(i);
+        final offsetBegin = tabAndSpaceWidth * i + _alignmentOffset(i);
+        final offsetEnd = tabAndSpaceWidth * (i + 1) + _alignmentOffset(i);
         _tabOffsets.add(Tween(begin: offsetBegin, end: offsetEnd));
       } else {
-        final offsetBegin = _tabSizesFromIndex[i] + _centeringOffset(i);
+        final offsetBegin = _tabSizesFromIndex[i] + _alignmentOffset(i);
         final offsetEnd = i == widget.contentLength - 1
-            ? _totalTabSize + _centeringOffset(0)
-            : _tabSizesFromIndex[i + 1] + _centeringOffset(i + 1);
+            ? _totalTabSize + _alignmentOffset(0)
+            : _tabSizesFromIndex[i + 1] + _alignmentOffset(i + 1);
         _tabOffsets.add(Tween(begin: offsetBegin, end: offsetEnd));
       }
 
@@ -285,6 +307,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       forceFixedTabWidth: widget.forceFixedTabWidth,
       fixedTabWidth: _fixedTabWidth,
       totalTabSize: _totalTabSize,
+      alignmentPadding: widget.alignmentPadding,
     );
   }
 
@@ -370,7 +393,9 @@ class _CyclicTabBarState extends State<CyclicTabBar>
             ),
             Positioned(
               bottom: 0,
-              left: 0,
+              left: _controller.alignment == CyclicTabAlignment.left
+                  ? widget.alignmentPadding
+                  : 0,
               right: 0,
               child: AnimatedBuilder(
                 animation: _controller,
@@ -380,6 +405,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
                     indicatorColor: widget.indicatorColor,
                     size: _controller.indicatorSize,
                     indicatorHeight: _indicatorHeight,
+                    alignment: _controller.alignment,
                     maxWidth: widget.maxIndicatorWidth,
                   ),
                 ),
@@ -421,6 +447,8 @@ class _CyclicTabBarState extends State<CyclicTabBar>
                   tabPadding: widget.tabPadding,
                   modIndex: modIndex,
                   tabBuilder: widget.tabBuilder,
+                  alignment: _controller.alignment,
+                  alignmentPadding: widget.alignmentPadding,
                   bottomBorder: effectiveBottomBorder,
                   tabWidth: widget.forceFixedTabWidth
                       ? _fixedTabWidth
@@ -467,6 +495,8 @@ class _TabContent extends StatelessWidget {
     required this.tabPadding,
     required this.indicatorColor,
     required this.tabBuilder,
+    required this.alignment,
+    required this.alignmentPadding,
     this.bottomBorder,
     required this.indicatorHeight,
     required this.indicatorWidth,
@@ -480,6 +510,8 @@ class _TabContent extends StatelessWidget {
   final double tabPadding;
   final Color indicatorColor;
   final SelectIndexedTextBuilder tabBuilder;
+  final CyclicTabAlignment alignment;
+  final double alignmentPadding;
   final BorderSide? bottomBorder;
   final double indicatorHeight;
   final double indicatorWidth;
@@ -508,12 +540,13 @@ class _TabContent extends StatelessWidget {
           Positioned(
             bottom: 0,
             height: indicatorHeight,
-            left: 0,
+            left: alignment == CyclicTabAlignment.left ? alignmentPadding : 0,
             right: 0,
             child: _CenteredIndicator(
               indicatorColor: indicatorColor,
               indicatorHeight: indicatorHeight,
               size: indicatorWidth,
+              alignment: alignment,
               maxWidth: maxIndicatorWidth,
             ),
           )
@@ -527,19 +560,24 @@ class _CenteredIndicator extends StatelessWidget {
     required this.indicatorColor,
     required this.size,
     required this.indicatorHeight,
+    required this.alignment,
     this.maxWidth,
   });
 
   final Color indicatorColor;
   final double size;
   final double indicatorHeight;
+  final CyclicTabAlignment alignment;
   final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
     final effectiveWidth = maxWidth != null ? math.min(size, maxWidth!) : size;
 
-    return Center(
+    return Align(
+      alignment: alignment == CyclicTabAlignment.left
+          ? Alignment.centerLeft
+          : Alignment.center,
       child: SizedBox(
         width: size,
         child: Row(

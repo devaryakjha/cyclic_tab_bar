@@ -4,7 +4,8 @@ import 'package:cyclic_tab_bar/cyclic_tab_bar.dart';
 
 void main() {
   group('Input validation', () {
-    testWidgets('Should validate contentLength > 0 in DefaultCyclicTabController',
+    testWidgets(
+        'Should validate contentLength > 0 in DefaultCyclicTabController',
         (tester) async {
       // Build widget with invalid contentLength - should throw assertion
       expect(
@@ -602,7 +603,8 @@ void main() {
   );
 
   group('Separator functionality', () {
-    testWidgets('Should render tab separators when tabSeparatorBuilder is provided',
+    testWidgets(
+        'Should render tab separators when tabSeparatorBuilder is provided',
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -640,7 +642,8 @@ void main() {
       expect(find.byType(CyclicTabBar), findsOneWidget);
     });
 
-    testWidgets('Should render page separators when separatorBuilder is provided',
+    testWidgets(
+        'Should render page separators when separatorBuilder is provided',
         (tester) async {
       var separatorBuilt = false;
 

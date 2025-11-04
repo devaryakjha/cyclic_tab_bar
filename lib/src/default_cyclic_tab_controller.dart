@@ -63,8 +63,8 @@ class DefaultCyclicTabController extends StatefulWidget {
   ///
   /// Throws an error if no [DefaultCyclicTabController] is found in the widget tree.
   static CyclicTabController of(BuildContext context) {
-    final scope = context
-        .dependOnInheritedWidgetOfExactType<_CyclicTabControllerScope>();
+    final scope =
+        context.dependOnInheritedWidgetOfExactType<_CyclicTabControllerScope>();
 
     if (scope == null) {
       throw FlutterError(
@@ -83,8 +83,8 @@ class DefaultCyclicTabController extends StatefulWidget {
   /// Returns the [CyclicTabController] from the closest [DefaultCyclicTabController]
   /// ancestor, or null if there is no ancestor.
   static CyclicTabController? maybeOf(BuildContext context) {
-    final scope = context
-        .dependOnInheritedWidgetOfExactType<_CyclicTabControllerScope>();
+    final scope =
+        context.dependOnInheritedWidgetOfExactType<_CyclicTabControllerScope>();
     return scope?.controller;
   }
 

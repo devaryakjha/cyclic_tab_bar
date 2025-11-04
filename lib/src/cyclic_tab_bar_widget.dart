@@ -46,7 +46,8 @@ class CyclicTabBar extends StatefulWidget {
     this.controller,
     this.onTabTap,
     this.tabSeparatorBuilder,
-    @Deprecated('Use bottomBorder instead. separator will be removed in a future version.')
+    @Deprecated(
+        'Use bottomBorder instead. separator will be removed in a future version.')
     BorderSide? separator,
     BorderSide? bottomBorder,
     this.backgroundColor,
@@ -66,7 +67,8 @@ class CyclicTabBar extends StatefulWidget {
         assert(
           indicatorHeight == null || indicatorHeight >= 1.0,
           'indicatorHeight must be >= 1.0 when specified',
-        ), bottomBorder = bottomBorder ?? separator;
+        ),
+        bottomBorder = bottomBorder ?? separator;
 
   /// The total number of tabs.
   final int contentLength;

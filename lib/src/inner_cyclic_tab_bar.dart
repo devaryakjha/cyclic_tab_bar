@@ -31,6 +31,7 @@ class InnerCyclicTabBar extends StatefulWidget {
     required this.fixedTabWidthFraction,
     required this.tabAnimationDuration,
     required this.scrollPhysics,
+    this.controller,
   })  : assert(contentLength > 0, 'contentLength must be greater than 0'),
         assert(tabHeight > 0, 'tabHeight must be greater than 0'),
         assert(tabPadding >= 0, 'tabPadding must be non-negative'),
@@ -63,6 +64,7 @@ class InnerCyclicTabBar extends StatefulWidget {
   final double fixedTabWidthFraction;
   final Duration tabAnimationDuration;
   final ScrollPhysics scrollPhysics;
+  final CycledScrollController? controller;
 
   @override
   InnerCyclicTabBarState createState() => InnerCyclicTabBarState();
@@ -74,7 +76,8 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
   late final _tabController = CycledScrollController(
     initialScrollOffset: centeringOffset(0),
   );
-  late final _pageController = CycledScrollController();
+  late final CycledScrollController _pageController;
+  bool _ownsPageController = false;
 
   final ValueNotifier<bool> _isContentChangingByTab = ValueNotifier(false);
   bool _isTabForceScrolling = false;
@@ -210,6 +213,25 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
   void initState() {
     super.initState();
 
+    // Initialize page controller - use provided one or create a new one
+    if (widget.controller != null) {
+      _pageController = widget.controller!;
+      _ownsPageController = false;
+
+      // Register callbacks for controller methods
+      _pageController.scrollToIndexCallback = (index) async {
+        // Ensure index is within bounds using modulo, just like keyboard navigation
+        final modIndex = index % widget.contentLength;
+        await _onTapTab(modIndex, modIndex);
+      };
+      _pageController.getCurrentIndexCallback = () {
+        return _selectedIndex.value;
+      };
+    } else {
+      _pageController = CycledScrollController();
+      _ownsPageController = true;
+    }
+
     calculateTabBehaviorElements(widget.textScaler);
 
     // Safety: Initialize indicator size with safe fallback
@@ -271,6 +293,13 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
         }
       }
     });
+
+    if (widget.controller?.initialIndex != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final newIndex = widget.controller!.initialIndex!;
+        _onTapTab(newIndex, newIndex);
+      });
+    }
   }
 
   Future<void> _onTapTab(int modIndex, int rawIndex) async {
@@ -469,7 +498,15 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
   void dispose() {
     _isDisposed = true;
     _tabController.dispose();
-    _pageController.dispose();
+    // Clean up controller callbacks
+    if (!_ownsPageController) {
+      _pageController.scrollToIndexCallback = null;
+      _pageController.getCurrentIndexCallback = null;
+    }
+    // Only dispose page controller if we created it
+    if (_ownsPageController) {
+      _pageController.dispose();
+    }
     _indicatorAnimationController.dispose();
     _isContentChangingByTab.dispose();
     _isTabPositionAligned.dispose();
@@ -477,21 +514,6 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
     _indicatorSize.dispose();
     super.dispose();
   }
-}
-
-/// Calculates the distance to the selected page.
-///
-/// Adjusts the sign to point in the nearest direction,
-/// taking into account wrapping around mod boundaries.
-@visibleForTesting
-int calculateMoveIndexDistance(int current, int selected, int length) {
-  final tabDistance = selected - current;
-  var move = tabDistance;
-  if (tabDistance.abs() >= length ~/ 2) {
-    move += (-tabDistance.sign * length);
-  }
-
-  return move;
 }
 
 class _TabContent extends StatelessWidget {

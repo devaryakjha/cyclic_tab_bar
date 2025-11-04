@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'cycled_list_view.dart';
 import 'inner_cyclic_tab_bar.dart';
 
 const _kTabAnimationDuration = Duration(milliseconds: 550);
@@ -30,7 +31,7 @@ class CyclicTabBar extends StatelessWidget {
     this.separator,
     this.backgroundColor,
     this.onPageChanged,
-    this.indicatorColor = Colors.pinkAccent,
+    this.indicatorColor = Colors.blueAccent,
     this.indicatorHeight,
     this.tabHeight = 44.0,
     this.tabPadding = 12.0,
@@ -39,6 +40,7 @@ class CyclicTabBar extends StatelessWidget {
     this.fixedTabWidthFraction = 0.5,
     this.tabAnimationDuration = _kTabAnimationDuration,
     this.scrollPhysics = const PageScrollPhysics(),
+    this.controller,
   });
 
   /// A length of tabs and pages.
@@ -139,6 +141,30 @@ class CyclicTabBar extends StatelessWidget {
 
   final ScrollPhysics scrollPhysics;
 
+  /// Optional scroll controller for programmatic control of pages.
+  ///
+  /// If provided, you can use [CycledScrollController.scrollToIndex] to
+  /// programmatically navigate to a specific page, and [CycledScrollController.currentIndex]
+  /// to get the current page index.
+  ///
+  /// Example:
+  /// ```dart
+  /// final controller = CycledScrollController(initialIndex: 5);
+  ///
+  /// CyclicTabBar(
+  ///   controller: controller,
+  ///   contentLength: 10,
+  ///   // ... other parameters
+  /// );
+  ///
+  /// // Later, programmatically scroll to index 3
+  /// controller.scrollToIndex(3);
+  ///
+  /// // Get current page
+  /// print(controller.currentIndex);
+  /// ```
+  final CycledScrollController? controller;
+
   @override
   Widget build(BuildContext context) {
     // Critical: Validate content length
@@ -183,6 +209,7 @@ class CyclicTabBar extends StatelessWidget {
       fixedTabWidthFraction: fixedTabWidthFraction,
       tabAnimationDuration: tabAnimationDuration,
       scrollPhysics: scrollPhysics,
+      controller: controller,
     );
   }
 }

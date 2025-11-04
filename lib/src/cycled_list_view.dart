@@ -1,3 +1,6 @@
+// ignore: unnecessary_import
+import 'package:meta/meta.dart' show internal;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -202,15 +205,92 @@ class CycledListViewState extends State<CycledListView> {
   }
 }
 
-/// Same as a [ScrollController] except it provides [ScrollPosition] objects with infinite bounds.
+/// Calculates the shortest movement distance between two indices in a cyclic list.
+///
+/// Given a [current] index and a [selected] target index in a list of [length] items,
+/// this function determines the shortest path to move from current to selected,
+/// taking into account wrapping around the bounds.
+///
+/// Returns:
+/// - Positive values indicate forward movement
+/// - Negative values indicate backward movement
+/// - The magnitude indicates how many steps to move
+///
+/// Example: In a list of length 5:
+/// - Moving from index 1 to 4: returns 3 (forward)
+/// - Moving from index 4 to 1: returns -3 (backward, wrapping around)
+int calculateMoveIndexDistance(int current, int selected, int length) {
+  final tabDistance = selected - current;
+  var move = tabDistance;
+  if (tabDistance.abs() >= length ~/ 2) {
+    move += (-tabDistance.sign * length);
+  }
+
+  return move;
+}
+
 class CycledScrollController extends ScrollController {
   /// Creates a new [CycledScrollController]
+  ///
+  /// Optional parameters:
+  /// - [initialIndex]: Starting index (will be applied after widget builds)
+  /// - [initialScrollOffset]: Starting scroll position in pixels
+  /// - [keepScrollOffset]: Whether to save scroll position (default: true)
+  /// - [debugLabel]: Label for debugging purposes
   CycledScrollController({
+    this.initialIndex,
     super.initialScrollOffset,
     super.keepScrollOffset,
     super.debugLabel,
   });
 
+  /// Initial index to scroll to after the widget builds.
+  final int? initialIndex;
+
+  /// Internal callback set by CyclicTabBar to handle index-based navigation.
+  /// This is called by [scrollToIndex] and delegates to the widget's internal
+  /// navigation logic which knows the actual page width and content length.
+  @internal
+  Future<void> Function(int index)? scrollToIndexCallback;
+
+  /// Internal callback set by CyclicTabBar to get the current index.
+  @internal
+  int Function()? getCurrentIndexCallback;
+
+  /// Gets the current index based on the scroll position.
+  ///
+  /// Returns the modulo index (0 to contentLength-1) of the currently
+  /// visible/centered item.
+  ///
+  /// Throws assertion error if the controller is not attached to a CyclicTabBar.
+  int get currentIndex {
+    assert(getCurrentIndexCallback != null,
+        'Controller must be attached to a CyclicTabBar to use currentIndex');
+    return getCurrentIndexCallback?.call() ?? 0;
+  }
+
+  /// Animates the scroll position to show the item at [index].
+  ///
+  /// Uses the shortest path, wrapping around if necessary.
+  ///
+  /// Parameters:
+  /// - [index]: Target index (any integer - will be wrapped to valid range using modulo)
+  ///
+  /// Example:
+  /// ```dart
+  /// controller.scrollToIndex(3);   // Navigate to page 3
+  /// controller.scrollToIndex(10);  // For contentLength=5, navigates to page 0 (10 % 5)
+  /// controller.scrollToIndex(-1);  // For contentLength=5, navigates to page 4 (-1 % 5)
+  /// ```
+  ///
+  /// Throws assertion error if the controller is not attached to a CyclicTabBar.
+  Future<void> scrollToIndex(int index) async {
+    assert(scrollToIndexCallback != null,
+        'Controller must be attached to a CyclicTabBar to use scrollToIndex');
+    return scrollToIndexCallback?.call(index);
+  }
+
+  /// Gets the current scroll direction (forward, reverse, or idle).
   ScrollDirection get currentScrollDirection => position.userScrollDirection;
 
   @override

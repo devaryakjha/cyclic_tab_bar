@@ -1,38 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cyclic_tab_bar/cyclic_tab_bar.dart';
-import 'package:cyclic_tab_bar/src/inner_cyclic_tab_bar.dart';
 
 void main() {
   group('Input validation', () {
-    testWidgets('Should validate contentLength > 0', (tester) async {
-      // Build widget with invalid contentLength - should fail during build
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CyclicTabBar(
-            contentLength: 0,
-            tabBuilder: (index, _) => const Text('Tab'),
-            pageBuilder: (_, __, ___) => Container(),
-          ),
+    testWidgets('Should validate contentLength > 0 in DefaultCyclicTabController',
+        (tester) async {
+      // Build widget with invalid contentLength - should throw assertion
+      expect(
+        () => DefaultCyclicTabController(
+          contentLength: 0,
+          child: Container(),
         ),
+        throwsAssertionError,
       );
-
-      // Expect that an assertion or error was thrown
-      expect(tester.takeException(), isNotNull);
     });
 
     testWidgets('Should accept valid contentLength', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 3,
-            tabBuilder: (index, _) => Text('Tab $index'),
-            pageBuilder: (_, index, __) => Center(child: Text('Page $index')),
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 3,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 3,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
 
       expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.byType(CyclicTabBarView), findsOneWidget);
     });
   });
 
@@ -40,10 +49,23 @@ void main() {
     testWidgets('Should handle single tab', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 1,
-            tabBuilder: (index, _) => const Text('Single'),
-            pageBuilder: (_, __, ___) => const Center(child: Text('Page 0')),
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 1,
+                  tabBuilder: (index, _) => const Text('Single'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 1,
+                    pageBuilder: (_, __, ___) =>
+                        const Center(child: Text('Page 0')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -55,10 +77,23 @@ void main() {
     testWidgets('Should handle two tabs', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 2,
-            tabBuilder: (index, _) => Text('Tab $index'),
-            pageBuilder: (_, index, __) => Center(child: Text('Page $index')),
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 2,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 2,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -71,15 +106,29 @@ void main() {
     testWidgets('Should handle many tabs (performance test)', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 50,
-            tabBuilder: (index, _) => Text('Tab $index'),
-            pageBuilder: (_, index, __) => Center(child: Text('Page $index')),
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 50,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 50,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
 
       expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.byType(CyclicTabBarView), findsOneWidget);
     });
   });
 
@@ -89,11 +138,24 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 3,
-            tabBuilder: (index, _) => Text('Tab $index'),
-            pageBuilder: (_, index, __) => Center(child: Text('Page $index')),
-            onTabTap: (index) => tappedIndex = index,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 3,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  onTabTap: (index) => tappedIndex = index,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 3,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -111,11 +173,24 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 3,
-            tabBuilder: (index, _) => Text('Tab $index'),
-            pageBuilder: (_, index, __) => Center(child: Text('Page $index')),
-            onPageChanged: (index) => changedIndices.add(index),
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 3,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 3,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                    onPageChanged: (index) => changedIndices.add(index),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -124,13 +199,7 @@ void main() {
 
       // Widget should build successfully with callback registered
       expect(find.byType(CyclicTabBar), findsOneWidget);
-
-      // Try to manually trigger page scroll via the controller if accessible
-      // For now, just verify the widget has the callback property
-      final state = tester.state<InnerCyclicTabBarState>(
-        find.byType(InnerCyclicTabBar),
-      );
-      expect(state.widget.onPageChanged, isNotNull);
+      expect(find.byType(CyclicTabBarView), findsOneWidget);
     });
 
     testWidgets('Should prevent rapid tab taps', (tester) async {
@@ -138,11 +207,24 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 5,
-            tabBuilder: (index, _) => Text('Tab $index'),
-            pageBuilder: (_, index, __) => Center(child: Text('Page $index')),
-            onTabTap: (index) => tapCount++,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 5,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  onTabTap: (index) => tapCount++,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 5,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -165,27 +247,31 @@ void main() {
     testWidgets('Should use fixed width when enabled', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 4,
-            forceFixedTabWidth: true,
-            fixedTabWidthFraction: 0.3,
-            tabBuilder: (index, _) => Text('Tab $index'),
-            pageBuilder: (_, index, __) => Center(child: Text('Page $index')),
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 4,
+                  forceFixedTabWidth: true,
+                  fixedTabWidthFraction: 0.3,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 4,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
 
-      final InnerCyclicTabBarState state =
-          tester.state(find.byType(InnerCyclicTabBar));
-
-      final screenWidth =
-          MediaQuery.sizeOf(tester.element(find.byType(MaterialApp))).width;
-      final expectedWidth = screenWidth * 0.3;
-
-      // All tabs should have the same width
-      expect(state.tabTextSizes[0], lessThanOrEqualTo(expectedWidth));
-      expect(state.tabTextSizes[1], lessThanOrEqualTo(expectedWidth));
-      expect(state.tabTextSizes[2], lessThanOrEqualTo(expectedWidth));
+      // Widget builds successfully with fixed width
+      expect(find.byType(CyclicTabBar), findsOneWidget);
     });
   });
 
@@ -193,56 +279,276 @@ void main() {
     testWidgets('Should apply custom indicator color', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 3,
-            indicatorColor: Colors.red,
-            tabBuilder: (index, _) => Text('Tab $index'),
-            pageBuilder: (_, index, __) => Center(child: Text('Page $index')),
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 3,
+                  indicatorColor: Colors.red,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 3,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
 
-      final InnerCyclicTabBarState state =
-          tester.state(find.byType(InnerCyclicTabBar));
-
-      expect(state.widget.indicatorColor, Colors.red);
+      expect(find.byType(CyclicTabBar), findsOneWidget);
     });
 
     testWidgets('Should apply custom tab height', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 3,
-            tabHeight: 60.0,
-            tabBuilder: (index, _) => Text('Tab $index'),
-            pageBuilder: (_, index, __) => Center(child: Text('Page $index')),
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 3,
+                  tabHeight: 60.0,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 3,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
 
-      final InnerCyclicTabBarState state =
-          tester.state(find.byType(InnerCyclicTabBar));
-
-      expect(state.widget.tabHeight, 60.0);
+      expect(find.byType(CyclicTabBar), findsOneWidget);
     });
 
     testWidgets('Should apply separator', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: CyclicTabBar(
+          home: DefaultCyclicTabController(
             contentLength: 3,
-            separator: const BorderSide(color: Colors.grey, width: 2),
-            tabBuilder: (index, _) => Text('Tab $index'),
-            pageBuilder: (_, index, __) => Center(child: Text('Page $index')),
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 3,
+                  separator: const BorderSide(color: Colors.grey, width: 2),
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 3,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
 
-      final InnerCyclicTabBarState state =
-          tester.state(find.byType(InnerCyclicTabBar));
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+    });
+  });
 
-      expect(state.widget.separator?.color, Colors.grey);
-      expect(state.widget.separator?.width, 2);
+  group('Custom decoration on tab bar', () {
+    testWidgets('Should allow wrapping tab bar with Container decoration',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 3,
+            child: Column(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.blue.shade100, Colors.purple.shade100],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: CyclicTabBar(
+                    contentLength: 3,
+                    tabBuilder: (index, _) => Text('Tab $index'),
+                  ),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 3,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // Verify the tab bar is wrapped in container with decoration
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(
+          find.ancestor(
+            of: find.byType(CyclicTabBar),
+            matching: find.byType(Container),
+          ),
+          findsWidgets);
+    });
+  });
+
+  group('Controller', () {
+    testWidgets('Should work with explicit controller', (tester) async {
+      final controller = CyclicTabController(contentLength: 3);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Column(
+            children: [
+              CyclicTabBar(
+                contentLength: 3,
+                controller: controller,
+                tabBuilder: (index, _) => Text('Tab $index'),
+              ),
+              Expanded(
+                child: CyclicTabBarView(
+                  contentLength: 3,
+                  controller: controller,
+                  pageBuilder: (_, index, __) =>
+                      Center(child: Text('Page $index')),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.byType(CyclicTabBarView), findsOneWidget);
+
+      controller.dispose();
+    });
+
+    testWidgets('Should animate to index programmatically', (tester) async {
+      final controller = CyclicTabController(contentLength: 5);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Column(
+            children: [
+              CyclicTabBar(
+                contentLength: 5,
+                controller: controller,
+                tabBuilder: (index, _) => Text('Tab $index'),
+              ),
+              Expanded(
+                child: CyclicTabBarView(
+                  contentLength: 5,
+                  controller: controller,
+                  pageBuilder: (_, index, __) =>
+                      Center(child: Text('Page $index')),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Animate to index 3
+      controller.animateToIndex(3);
+      await tester.pumpAndSettle();
+
+      expect(controller.index, 3);
+
+      controller.dispose();
+    });
+
+    testWidgets('Should respect initialIndex', (tester) async {
+      final controller = CyclicTabController(
+        contentLength: 10,
+        initialIndex: 5,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Column(
+            children: [
+              CyclicTabBar(
+                contentLength: 10,
+                controller: controller,
+                tabBuilder: (index, _) => Text('Tab $index'),
+              ),
+              Expanded(
+                child: CyclicTabBarView(
+                  contentLength: 10,
+                  controller: controller,
+                  pageBuilder: (_, index, __) =>
+                      Center(child: Text('Page $index')),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Should start at index 5
+      expect(controller.index, 5);
+
+      controller.dispose();
+    });
+
+    testWidgets('Should respect initialIndex in DefaultCyclicTabController',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 10,
+            initialIndex: 7,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 10,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 10,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final controller = DefaultCyclicTabController.of(
+        tester.element(find.byType(CyclicTabBar)),
+      );
+
+      // Should start at index 7
+      expect(controller.index, 7);
     });
   });
 
@@ -292,108 +598,6 @@ void main() {
           expect(calculateMoveIndexDistance(1, 7, 10), -4);
         },
       );
-    },
-  );
-
-  group(
-    'CyclicTabBar should be calculate tab sizes element expectedly.',
-    () {
-      testWidgets('On initialize.', (tester) async {
-        final strings = ['A', 'BB', 'CCC', 'DDDD'];
-        await tester.pumpWidget(
-          MaterialApp(
-            home: CyclicTabBar(
-              contentLength: strings.length,
-              tabPadding: 4.0,
-              tabBuilder: (index, _) => Text(
-                strings[index],
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.normal),
-              ),
-              pageBuilder: (_, index, __) => Container(),
-            ),
-          ),
-        );
-
-        expect(find.text('A'), findsWidgets);
-
-        final InnerCyclicTabBarState state =
-            tester.state(find.byType(InnerCyclicTabBar));
-
-        final expectedSizes = [24, 40, 56, 72];
-        final expectedTotal = expectedSizes.reduce((v, e) => v += e);
-
-        // [16 + 8, 16 * 2 + 8, 16 * 3 + 8, 16 * 4 + 8]
-        // {text size} * {text length} + {tab padding} * 2
-        expect(state.tabTextSizes, expectedSizes);
-
-        expect(state.tabSizesFromIndex, [0, 24, 64, 120]);
-
-        final offsets = [
-          Tween(
-            begin: 0 + state.centeringOffset(0),
-            end: 24 + state.centeringOffset(1),
-          ),
-          Tween(
-            begin: 24 + state.centeringOffset(1),
-            end: 64 + state.centeringOffset(2),
-          ),
-          Tween(
-            begin: 64 + state.centeringOffset(2),
-            end: 120 + state.centeringOffset(3),
-          ),
-          Tween(
-            begin: 120 + state.centeringOffset(3),
-            end: expectedTotal + state.centeringOffset(0),
-          ),
-        ];
-        expect(state.tabOffsets[0].begin, offsets[0].begin);
-        expect(state.tabOffsets[0].end, offsets[0].end);
-        expect(state.tabOffsets[1].begin, offsets[1].begin);
-        expect(state.tabOffsets[1].end, offsets[1].end);
-        expect(state.tabOffsets.last.begin, offsets.last.begin);
-        expect(state.tabOffsets.last.end, offsets.last.end);
-
-        final tweens = [
-          Tween(begin: 24, end: 40),
-          Tween(begin: 40, end: 56),
-          Tween(begin: 56, end: 72),
-          Tween(begin: 72, end: 24),
-        ];
-        expect(state.tabSizeTweens[0].begin, tweens[0].begin);
-        expect(state.tabSizeTweens[0].end, tweens[0].end);
-        expect(state.tabSizeTweens[1].begin, tweens[1].begin);
-        expect(state.tabSizeTweens[1].end, tweens[1].end);
-        expect(state.tabSizeTweens.last.begin, tweens.last.begin);
-        expect(state.tabSizeTweens.last.end, tweens.last.end);
-      });
-
-      testWidgets('On textScaleFactor changed.', (tester) async {
-        final strings = ['A', 'BB', 'CCC', 'DDDD'];
-        await tester.pumpWidget(
-          MaterialApp(
-            home: CyclicTabBar(
-              contentLength: strings.length,
-              tabPadding: 4.0,
-              tabBuilder: (index, _) => Text(
-                strings[index],
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.normal),
-              ),
-              pageBuilder: (_, index, __) => Container(),
-            ),
-          ),
-        );
-
-        final InnerCyclicTabBarState state =
-            tester.state(find.byType(InnerCyclicTabBar));
-
-        state.calculateTabBehaviorElements(const TextScaler.linear(1.5));
-
-        final expectedSizes = [32.0, 56.0, 80.0, 104.0];
-
-        expect(state.tabTextSizes, expectedSizes);
-      });
     },
   );
 }

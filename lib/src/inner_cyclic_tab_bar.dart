@@ -7,8 +7,6 @@ import 'package:flutter/services.dart';
 import '../cyclic_tab_bar.dart';
 import 'cycled_list_view.dart';
 
-const _tabAnimationDuration = Duration(milliseconds: 550);
-
 @visibleForTesting
 class InnerCyclicTabBar extends StatefulWidget {
   const InnerCyclicTabBar({
@@ -31,6 +29,8 @@ class InnerCyclicTabBar extends StatefulWidget {
     required this.tabPadding,
     required this.forceFixedTabWidth,
     required this.fixedTabWidthFraction,
+    required this.tabAnimationDuration,
+    required this.scrollPhysics,
   })  : assert(contentLength > 0, 'contentLength must be greater than 0'),
         assert(tabHeight > 0, 'tabHeight must be greater than 0'),
         assert(tabPadding >= 0, 'tabPadding must be non-negative'),
@@ -61,6 +61,8 @@ class InnerCyclicTabBar extends StatefulWidget {
   final double tabPadding;
   final bool forceFixedTabWidth;
   final double fixedTabWidthFraction;
+  final Duration tabAnimationDuration;
+  final ScrollPhysics scrollPhysics;
 
   @override
   InnerCyclicTabBarState createState() => InnerCyclicTabBarState();
@@ -217,7 +219,7 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
 
     // Initialize animation controller
     _indicatorAnimationController =
-        AnimationController(vsync: this, duration: _tabAnimationDuration)
+        AnimationController(vsync: this, duration: widget.tabAnimationDuration)
           ..addListener(() {
             // Null-safe access to indicator animation
             final animation = _indicatorAnimation;
@@ -239,8 +241,8 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
 
       final currentIndexDouble = _pageController.offset / widget.size.width;
       final currentIndex = currentIndexDouble.floor();
-      // Fix: Use floor() consistently instead of round() to prevent off-by-one errors
-      final modIndex = currentIndex % widget.contentLength;
+      // Use round() for modIndex to trigger page changes at midpoint for symmetric behavior
+      final modIndex = currentIndexDouble.round() % widget.contentLength;
 
       final currentIndexDecimal =
           currentIndexDouble - currentIndexDouble.floor();
@@ -298,7 +300,7 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
         _tabController
             .animateTo(
               targetOffset + centeringOffset(modIndex),
-              duration: _tabAnimationDuration,
+              duration: widget.tabAnimationDuration,
               curve: Curves.ease,
             )
             .then((_) => _isTabForceScrolling = false)
@@ -327,7 +329,7 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
       // Await page animation with timeout
       await _pageController.animateTo(
         targetPageOffset,
-        duration: _tabAnimationDuration,
+        duration: widget.tabAnimationDuration,
         curve: Curves.ease,
       );
     } catch (e) {
@@ -393,7 +395,7 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
                 scrollDirection: Axis.horizontal,
                 contentCount: widget.contentLength,
                 controller: _pageController,
-                physics: const PageScrollPhysics(),
+                physics: widget.scrollPhysics,
                 itemBuilder: (context, modIndex, rawIndex) => SizedBox(
                   width: widget.size.width,
                   child: ValueListenableBuilder<int>(
@@ -429,7 +431,7 @@ class InnerCyclicTabBarState extends State<InnerCyclicTabBar>
           label: 'Tab ${modIndex + 1} of ${widget.contentLength}',
           hint: isSelected ? 'Currently selected' : 'Double tap to activate',
           child: Material(
-            color: widget.backgroundColor,
+            type: MaterialType.transparency,
             child: InkWell(
               onTap: () => _onTapTab(modIndex, rawIndex),
               child: ValueListenableBuilder<int>(

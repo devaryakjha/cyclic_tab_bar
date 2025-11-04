@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'inner_cyclic_tab_bar.dart';
 
+const _kTabAnimationDuration = Duration(milliseconds: 550);
+
 /// A type of callback to build [Widget] on specified index.
 typedef SelectIndexedWidgetBuilder = Widget Function(
     BuildContext context, int index, bool isSelected);
@@ -35,6 +37,8 @@ class CyclicTabBar extends StatelessWidget {
     this.size,
     this.forceFixedTabWidth = false,
     this.fixedTabWidthFraction = 0.5,
+    this.tabAnimationDuration = _kTabAnimationDuration,
+    this.scrollPhysics = const PageScrollPhysics(),
   });
 
   /// A length of tabs and pages.
@@ -131,6 +135,10 @@ class CyclicTabBar extends StatelessWidget {
   /// This will be ignored when [forceFixedTabWidth] is false.
   final double fixedTabWidthFraction;
 
+  final Duration tabAnimationDuration;
+
+  final ScrollPhysics scrollPhysics;
+
   @override
   Widget build(BuildContext context) {
     // Critical: Validate content length
@@ -173,6 +181,8 @@ class CyclicTabBar extends StatelessWidget {
       tabPadding: tabPadding,
       forceFixedTabWidth: forceFixedTabWidth,
       fixedTabWidthFraction: fixedTabWidthFraction,
+      tabAnimationDuration: tabAnimationDuration,
+      scrollPhysics: scrollPhysics,
     );
   }
 }

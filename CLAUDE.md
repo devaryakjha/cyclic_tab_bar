@@ -78,9 +78,7 @@ flutter pub upgrade      # Upgrade dependencies
 - Uses custom `CycledScrollController` and `_InfiniteScrollPosition`
 - Renders items in both positive and negative directions from center
 - Modulo arithmetic maps infinite index space to finite content: `index % contentCount`
-- Supports two constructors:
-  - `.builder()` - Standard item builder without separators
-  - `.separated()` - Item builder with separator widgets between items (similar to `ListView.separated`)
+- Supports `itemSpacing` parameter to add space between items without affecting individual item sizes
 
 ### Legacy Components
 
@@ -132,8 +130,7 @@ Tests verify:
 - `calculateMoveIndexDistance` correctly handles wrapping in both directions
 - Programmatic navigation via controller
 - Tab and page synchronization
-- Separator functionality in both tabs and pages
-- Modulo index mapping for separators
+- Spacing functionality in both tabs and pages
 - Backward compatibility with deprecated `separator` parameter (now `bottomBorder`)
 
 When testing widgets:
@@ -217,32 +214,25 @@ Container(
 )
 ```
 
-### Tab Separators
+### Tab Spacing
 ```dart
 CyclicTabBar(
   contentLength: 10,
   tabBuilder: (index, _) => Text('Tab $index'),
-  tabSeparatorBuilder: (context, modIndex, rawIndex) => Container(
-    width: 1,
-    height: double.infinity,
-    color: Colors.grey,
-  ),
+  tabSpacing: 8.0,  // 8 pixels between tabs
 )
 ```
 
-### Page Separators
+### Page Spacing
 ```dart
 CyclicTabBarView(
   contentLength: 10,
   pageBuilder: (context, index, _) => Center(child: Text('Page $index')),
-  separatorBuilder: (context, modIndex, rawIndex) => Container(
-    width: 2,
-    color: Colors.grey.shade300,
-  ),
+  pageSpacing: 16.0,  // 16 pixels between pages
 )
 ```
 
-### Bottom Border (replaces deprecated `separator`)
+### Bottom Border
 ```dart
 CyclicTabBar(
   contentLength: 10,
@@ -261,29 +251,38 @@ The main export file (`lib/cyclic_tab_bar.dart`) exports:
 - Type definitions: `SelectIndexedWidgetBuilder`, `SelectIndexedTextBuilder`, `IndexedTapCallback`, `ModuloIndexedWidgetBuilder`
 - Utilities: `CycledScrollController`, `calculateMoveIndexDistance`, `CycledListView`
 
-## Separator Feature Details
+## Spacing Feature Details
 
 ### Overview
-As of the latest version, the package supports separators between tabs and pages, similar to Flutter's `ListView.separated`.
+The package supports spacing between tabs and pages through simple spacing parameters.
 
 ### Implementation Details
 
-**CycledListView separators:**
-- Uses even/odd index logic: even indices = items, odd indices = separators
-- Child count becomes `2 * itemCount - 1` when separators are enabled
+**Item Spacing:**
+- Uses `SizedBox` widgets inserted between items
+- Child count becomes `2 * itemCount - 1` when spacing > 0
 - Works in both positive and negative scroll directions
-- Separators appear at wrap-around boundaries (between last and first item)
-- Separator builder receives both `modIndex` and `rawIndex` for flexibility
+- Spacing appears at wrap-around boundaries (between last and first item)
+- Does NOT affect individual item sizes - spacing is added between items
+- This ensures indicator positioning and size calculations remain accurate
 
-**Tab separators (`CyclicTabBar.tabSeparatorBuilder`):**
-- Vertical dividers between tabs in the horizontal tab bar
-- Useful for creating visual separation between tab items
-- Does not affect the bottom border (controlled separately by `bottomBorder`)
+**Tab Spacing (`CyclicTabBar.tabSpacing`):**
+- Horizontal spacing between tabs in pixels
+- Added as separate `SizedBox` widgets between tabs
+- Tab size calculations automatically account for spacing
+- Useful for creating visual separation without affecting tab dimensions
 
-**Page separators (`CyclicTabBarView.separatorBuilder`):**
-- Vertical dividers between pages in the horizontal page view
-- Typically thin colored containers
-- Can be used for visual spacing or decorative purposes
+**Page Spacing (`CyclicTabBarView.pageSpacing`):**
+- Horizontal spacing between pages in pixels
+- Useful for creating "peek" effects where adjacent pages are partially visible
+- Does not affect page swipe physics
+
+### Benefits of Spacing Approach
+- Simple API - just provide a number
+- No need to specify separator width separately
+- Tab/page sizes remain unchanged
+- Indicator positioning works correctly
+- Scroll synchronization automatically accounts for spacing
 
 ### Deprecation Notice
 The `separator` parameter in `CyclicTabBar` has been deprecated in favor of `bottomBorder` to avoid confusion:

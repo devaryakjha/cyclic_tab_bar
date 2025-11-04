@@ -602,10 +602,8 @@ void main() {
     },
   );
 
-  group('Separator functionality', () {
-    testWidgets(
-        'Should render tab separators when tabSeparatorBuilder is provided',
-        (tester) async {
+  group('Spacing functionality', () {
+    testWidgets('Should render tabs with spacing', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: DefaultCyclicTabController(
@@ -615,12 +613,7 @@ void main() {
                 CyclicTabBar(
                   contentLength: 4,
                   tabBuilder: (index, _) => Text('Tab $index'),
-                  tabSeparatorBuilder: (context, modIndex, rawIndex) =>
-                      Container(
-                    key: Key('separator_$modIndex'),
-                    width: 1,
-                    color: Colors.grey,
-                  ),
+                  tabSpacing: 8.0,
                 ),
                 Expanded(
                   child: CyclicTabBarView(
@@ -637,16 +630,12 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Verify that separators are rendered
-      expect(find.byKey(const Key('separator_0')), findsWidgets);
+      // Widget should build successfully with spacing
       expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.text('Tab 0'), findsWidgets);
     });
 
-    testWidgets(
-        'Should render page separators when separatorBuilder is provided',
-        (tester) async {
-      var separatorBuilt = false;
-
+    testWidgets('Should render pages with spacing', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: DefaultCyclicTabController(
@@ -662,13 +651,7 @@ void main() {
                     contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
-                    separatorBuilder: (context, modIndex, rawIndex) {
-                      separatorBuilt = true;
-                      return Container(
-                        width: 2,
-                        color: Colors.grey.shade300,
-                      );
-                    },
+                    pageSpacing: 16.0,
                   ),
                 ),
               ],
@@ -679,13 +662,12 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Verify that separator builder was called
-      expect(separatorBuilt, true,
-          reason: 'Separator builder should be called when provided');
+      // Widget should build successfully with page spacing
       expect(find.byType(CyclicTabBarView), findsOneWidget);
+      expect(find.text('Page 0'), findsOneWidget);
     });
 
-    testWidgets('Should work without separators (default behavior)',
+    testWidgets('Should work without spacing (default behavior)',
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -712,13 +694,12 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Should work normally without separators
+      // Should work normally without spacing
       expect(find.text('Tab 0'), findsWidgets);
       expect(find.text('Page 0'), findsOneWidget);
     });
 
-    testWidgets('Should use bottomBorder instead of deprecated separator',
-        (tester) async {
+    testWidgets('Should use bottomBorder parameter', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: DefaultCyclicTabController(
@@ -747,49 +728,6 @@ void main() {
 
       // Widget should build successfully with bottomBorder
       expect(find.byType(CyclicTabBar), findsOneWidget);
-    });
-
-    testWidgets('Should handle separators with modulo indices correctly',
-        (tester) async {
-      final List<int> separatorModIndices = [];
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DefaultCyclicTabController(
-            contentLength: 3,
-            child: Column(
-              children: [
-                CyclicTabBar(
-                  contentLength: 3,
-                  tabBuilder: (index, _) => Text('Tab $index'),
-                  tabSeparatorBuilder: (context, modIndex, rawIndex) {
-                    separatorModIndices.add(modIndex);
-                    return Container(
-                      width: 1,
-                      color: Colors.grey,
-                    );
-                  },
-                ),
-                Expanded(
-                  child: CyclicTabBarView(
-                    contentLength: 3,
-                    pageBuilder: (_, index, __) =>
-                        Center(child: Text('Page $index')),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
-
-      // Verify that separator modulo indices are within valid range [0, contentLength-1]
-      for (final modIndex in separatorModIndices) {
-        expect(modIndex >= 0 && modIndex < 3, true,
-            reason: 'Separator modIndex $modIndex should be in range [0, 2]');
-      }
     });
   });
 }

@@ -41,7 +41,7 @@ class CyclicTabBarView extends StatefulWidget {
     this.controller,
     this.scrollPhysics = const PageScrollPhysics(),
     this.onPageChanged,
-    this.separatorBuilder,
+    this.pageSpacing = 0.0,
   }) : assert(contentLength > 0, 'contentLength must be greater than 0');
 
   /// The total number of pages.
@@ -64,22 +64,20 @@ class CyclicTabBarView extends StatefulWidget {
   /// Callback when the page changes.
   final ValueChanged<int>? onPageChanged;
 
-  /// Builder for separators between pages.
+  /// Horizontal spacing between pages in pixels.
   ///
-  /// If provided, separators will be displayed between each page.
-  /// The builder receives both the modulo index (0 to [contentLength] - 1)
-  /// and the raw index for flexibility.
-  ///
-  /// Note: Separators appear as vertical dividers between full-width pages.
+  /// Adds space between each page. Useful for creating visual separation
+  /// or peek effects where adjacent pages are partially visible.
+  /// Defaults to 0 (no spacing).
   ///
   /// Example:
   /// ```dart
-  /// separatorBuilder: (context, modIndex, rawIndex) => Container(
-  ///   width: 2,
-  ///   color: Colors.grey.shade300,
-  /// ),
+  /// CyclicTabBarView(
+  ///   pageSpacing: 16.0,
+  ///   // ... other parameters
+  /// )
   /// ```
-  final ModuloIndexedWidgetBuilder? separatorBuilder;
+  final double pageSpacing;
 
   @override
   State<CyclicTabBarView> createState() => _CyclicTabBarViewState();
@@ -166,20 +164,6 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
       );
     }
 
-    if (widget.separatorBuilder != null) {
-      return Semantics(
-        label: 'Content area',
-        child: CycledListView.separated(
-          scrollDirection: Axis.horizontal,
-          contentCount: widget.contentLength,
-          controller: _controller.pageScrollController,
-          physics: widget.scrollPhysics,
-          itemBuilder: buildPage,
-          separatorBuilder: widget.separatorBuilder!,
-        ),
-      );
-    }
-
     return Semantics(
       label: 'Content area',
       child: CycledListView.builder(
@@ -188,6 +172,7 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
         controller: _controller.pageScrollController,
         physics: widget.scrollPhysics,
         itemBuilder: buildPage,
+        itemSpacing: widget.pageSpacing,
       ),
     );
   }

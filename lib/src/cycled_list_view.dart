@@ -21,32 +21,7 @@ class CycledListView extends StatefulWidget {
     required this.itemBuilder,
     required this.contentCount,
     this.itemCount,
-    this.addAutomaticKeepAlives = true,
-    this.addRepaintBoundaries = true,
-    this.addSemanticIndexes = true,
-    this.cacheExtent,
-    this.anchor = 0.0,
-    this.dragStartBehavior = DragStartBehavior.start,
-    this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
-    this.restorationId,
-    this.clipBehavior = Clip.hardEdge,
-  }) : separatorBuilder = null;
-
-  /// Creates a scrollable, linear array of widgets that are separated by separator widgets.
-  ///
-  /// Similar to [ListView.separated], but with infinite scrolling support.
-  /// Separators appear between all items, including at the wrap-around boundary.
-  const CycledListView.separated({
-    super.key,
-    this.scrollDirection = Axis.vertical,
-    this.reverse = false,
-    this.controller,
-    this.physics,
-    this.padding,
-    required this.itemBuilder,
-    required this.separatorBuilder,
-    required this.contentCount,
-    this.itemCount,
+    this.itemSpacing = 0.0,
     this.addAutomaticKeepAlives = true,
     this.addRepaintBoundaries = true,
     this.addSemanticIndexes = true,
@@ -76,12 +51,12 @@ class CycledListView extends StatefulWidget {
   /// See: [ListView.builder]
   final ModuloIndexedWidgetBuilder itemBuilder;
 
-  /// Called to build separators between items.
+  /// Spacing between items in pixels.
   ///
-  /// Only used when constructed with [CycledListView.separated].
-  /// The separator builder receives both the modulo index (0 to contentCount-1)
-  /// and the raw index for flexibility in building different separators.
-  final ModuloIndexedWidgetBuilder? separatorBuilder;
+  /// For horizontal lists, this adds horizontal spacing.
+  /// For vertical lists, this adds vertical spacing.
+  /// Defaults to 0 (no spacing).
+  final double itemSpacing;
 
   /// See: [SliverChildBuilderDelegate.childCount]
   final int? itemCount;
@@ -194,10 +169,10 @@ class CycledListViewState extends State<CycledListView> {
 
   SliverChildDelegate get positiveChildrenDelegate {
     final itemCount = widget.itemCount;
-    final separatorBuilder = widget.separatorBuilder;
+    final spacing = widget.itemSpacing;
 
-    if (separatorBuilder != null) {
-      // For separated list, we need items + separators
+    // If spacing is specified, we need to add spacing widgets between items
+    if (spacing > 0) {
       final childCount = itemCount != null ? (2 * itemCount - 1) : null;
       return SliverChildBuilderDelegate(
         (context, index) {
@@ -207,9 +182,11 @@ class CycledListViewState extends State<CycledListView> {
             return widget.itemBuilder(
                 context, itemIndex % widget.contentCount, itemIndex);
           } else {
-            // Build separator - map to the item it follows
-            return separatorBuilder(
-                context, itemIndex % widget.contentCount, itemIndex);
+            // Build spacing
+            return SizedBox(
+              width: widget.scrollDirection == Axis.horizontal ? spacing : null,
+              height: widget.scrollDirection == Axis.vertical ? spacing : null,
+            );
           }
         },
         childCount: childCount,
@@ -230,23 +207,26 @@ class CycledListViewState extends State<CycledListView> {
 
   SliverChildDelegate get negativeChildrenDelegate {
     final itemCount = widget.itemCount;
-    final separatorBuilder = widget.separatorBuilder;
+    final spacing = widget.itemSpacing;
 
-    if (separatorBuilder != null) {
-      // For separated list, we need items + separators
+    // If spacing is specified, we need to add spacing widgets between items
+    if (spacing > 0) {
       final childCount = itemCount != null ? (2 * itemCount - 1) : null;
       return SliverChildBuilderDelegate(
         (context, index) {
           if (index == 0) return const SizedBox.shrink();
+
           final itemIndex = index ~/ 2;
           if (index.isEven) {
             // Build item
             return widget.itemBuilder(
                 context, -itemIndex % widget.contentCount, -itemIndex);
           } else {
-            // Build separator - map to the item it follows
-            return separatorBuilder(
-                context, -itemIndex % widget.contentCount, -itemIndex);
+            // Build spacing
+            return SizedBox(
+              width: widget.scrollDirection == Axis.horizontal ? spacing : null,
+              height: widget.scrollDirection == Axis.vertical ? spacing : null,
+            );
           }
         },
         childCount: childCount,

@@ -45,7 +45,7 @@ class CyclicTabBar extends StatefulWidget {
     required this.tabBuilder,
     this.controller,
     this.onTabTap,
-    this.tabSeparatorBuilder,
+    this.tabSpacing = 0.0,
     @Deprecated(
         'Use bottomBorder instead. separator will be removed in a future version.')
     BorderSide? separator,
@@ -53,6 +53,7 @@ class CyclicTabBar extends StatefulWidget {
     this.backgroundColor,
     this.indicatorColor = Colors.blueAccent,
     this.indicatorHeight,
+    this.maxIndicatorWidth,
     this.tabHeight = 44.0,
     this.tabPadding = 12.0,
     this.forceFixedTabWidth = false,
@@ -88,20 +89,20 @@ class CyclicTabBar extends StatefulWidget {
   /// Callback when a tab is tapped.
   final IndexedTapCallback? onTabTap;
 
-  /// Builder for separators between tabs.
+  /// Horizontal spacing between tabs in pixels.
   ///
-  /// If provided, the tab bar will display separators between each tab.
-  /// The builder receives both the modulo index (0 to [contentLength] - 1)
-  /// and the raw index for flexibility.
+  /// Adds space between each tab without affecting individual tab sizes.
+  /// This ensures the indicator positioning remains accurate.
+  /// Defaults to 0 (no spacing).
   ///
   /// Example:
   /// ```dart
-  /// tabSeparatorBuilder: (context, modIndex, rawIndex) => Container(
-  ///   width: 1,
-  ///   color: Colors.grey,
-  /// ),
+  /// CyclicTabBar(
+  ///   tabSpacing: 8.0,
+  ///   // ... other parameters
+  /// )
   /// ```
-  final ModuloIndexedWidgetBuilder? tabSeparatorBuilder;
+  final double tabSpacing;
 
   /// Border line displayed at the bottom of the tab bar.
   ///
@@ -117,6 +118,13 @@ class CyclicTabBar extends StatefulWidget {
   ///
   /// If null, uses [bottomBorder] width, or defaults to 2.0.
   final double? indicatorHeight;
+
+  /// Maximum width for the indicator in pixels.
+  ///
+  /// When set, the indicator width will be clamped to this value.
+  /// Useful for creating compact indicators that don't span the full tab width.
+  /// If null, the indicator spans the full tab text width.
+  final double? maxIndicatorWidth;
 
   /// Height of the tab bar.
   final double tabHeight;
@@ -186,6 +194,10 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     var size = 0.0;
     for (var i = 0; i < index; i++) {
       size += _tabTextSizes[i];
+      // Add spacing after each tab (except the last one)
+      if (widget.tabSpacing > 0) {
+        size += widget.tabSpacing;
+      }
     }
     return size;
   }
@@ -226,16 +238,26 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       _tabSizesFromIndex.add(_calculateTabSizeFromIndex(i));
     }
 
-    // Calculate total size
-    _totalTabSize = widget.forceFixedTabWidth
-        ? _fixedTabWidth * widget.contentLength
-        : _tabTextSizes.reduce((v, e) => v += e);
+    // Calculate total size (including spacing)
+    if (widget.forceFixedTabWidth) {
+      _totalTabSize = _fixedTabWidth * widget.contentLength;
+      if (widget.tabSpacing > 0) {
+        _totalTabSize += widget.tabSpacing * widget.contentLength;
+      }
+    } else {
+      _totalTabSize = _tabTextSizes.reduce((v, e) => v += e);
+      if (widget.tabSpacing > 0) {
+        _totalTabSize += widget.tabSpacing * widget.contentLength;
+      }
+    }
 
     // Calculate offset tweens
     for (var i = 0; i < widget.contentLength; i++) {
       if (widget.forceFixedTabWidth) {
-        final offsetBegin = _fixedTabWidth * i + _centeringOffset(i);
-        final offsetEnd = _fixedTabWidth * (i + 1) + _centeringOffset(i);
+        // Account for spacing in fixed width mode
+        final tabAndSpaceWidth = _fixedTabWidth + widget.tabSpacing;
+        final offsetBegin = tabAndSpaceWidth * i + _centeringOffset(i);
+        final offsetEnd = tabAndSpaceWidth * (i + 1) + _centeringOffset(i);
         _tabOffsets.add(Tween(begin: offsetBegin, end: offsetEnd));
       } else {
         final offsetBegin = _tabSizesFromIndex[i] + _centeringOffset(i);
@@ -358,6 +380,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
                     indicatorColor: widget.indicatorColor,
                     size: _controller.indicatorSize,
                     indicatorHeight: _indicatorHeight,
+                    maxWidth: widget.maxIndicatorWidth,
                   ),
                 ),
               ),
@@ -407,6 +430,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
                   indicatorHeight: _indicatorHeight,
                   indicatorWidth:
                       _tabTextSizes.isNotEmpty ? _tabTextSizes[modIndex] : 0,
+                  maxIndicatorWidth: widget.maxIndicatorWidth,
                 ),
               ),
             ),
@@ -419,21 +443,12 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       );
     }
 
-    if (widget.tabSeparatorBuilder != null) {
-      return CycledListView.separated(
-        scrollDirection: Axis.horizontal,
-        controller: _controller.tabScrollController,
-        contentCount: widget.contentLength,
-        itemBuilder: buildTab,
-        separatorBuilder: widget.tabSeparatorBuilder!,
-      );
-    }
-
     return CycledListView.builder(
       scrollDirection: Axis.horizontal,
       controller: _controller.tabScrollController,
       contentCount: widget.contentLength,
       itemBuilder: buildTab,
+      itemSpacing: widget.tabSpacing,
     );
   }
 
@@ -456,6 +471,7 @@ class _TabContent extends StatelessWidget {
     required this.indicatorHeight,
     required this.indicatorWidth,
     required this.tabWidth,
+    this.maxIndicatorWidth,
   });
 
   final int modIndex;
@@ -468,6 +484,7 @@ class _TabContent extends StatelessWidget {
   final double indicatorHeight;
   final double indicatorWidth;
   final double tabWidth;
+  final double? maxIndicatorWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -493,14 +510,11 @@ class _TabContent extends StatelessWidget {
             height: indicatorHeight,
             left: 0,
             right: 0,
-            child: Center(
-              child: Container(
-                width: indicatorWidth,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(indicatorHeight),
-                  color: indicatorColor,
-                ),
-              ),
+            child: _CenteredIndicator(
+              indicatorColor: indicatorColor,
+              indicatorHeight: indicatorHeight,
+              size: indicatorWidth,
+              maxWidth: maxIndicatorWidth,
             ),
           )
       ],
@@ -513,21 +527,34 @@ class _CenteredIndicator extends StatelessWidget {
     required this.indicatorColor,
     required this.size,
     required this.indicatorHeight,
+    this.maxWidth,
   });
 
   final Color indicatorColor;
   final double size;
   final double indicatorHeight;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
+    final effectiveWidth = maxWidth != null ? math.min(size, maxWidth!) : size;
+
     return Center(
-      child: Container(
-        height: indicatorHeight,
+      child: SizedBox(
         width: size,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(indicatorHeight),
-          color: indicatorColor,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: indicatorHeight,
+              width: effectiveWidth,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(indicatorHeight),
+                color: indicatorColor,
+              ),
+            ),
+            SizedBox(width: size - effectiveWidth),
+          ],
         ),
       ),
     );

@@ -349,6 +349,7 @@ class CyclicTabController extends ChangeNotifier {
       debugPrint('Error in _onTapTab: $e');
     } finally {
       _isContentChangingByTab = false;
+      notifyListeners();
     }
   }
 

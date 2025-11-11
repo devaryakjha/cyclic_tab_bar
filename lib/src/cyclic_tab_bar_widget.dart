@@ -573,8 +573,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       text: span,
       maxLines: text.maxLines,
       locale: locale,
-      textScaler:
-          text.textScaler ?? TextScaler.linear(1.0),
+      textScaler: text.textScaler ?? TextScaler.linear(1.0),
       textDirection: text.textDirection ?? textDirection,
       textAlign: text.textAlign ?? TextAlign.start,
       strutStyle: text.strutStyle,

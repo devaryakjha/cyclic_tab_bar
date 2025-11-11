@@ -158,7 +158,7 @@ class _MyWidgetState extends State<MyWidget> with SingleTickerProviderStateMixin
 #### CyclicTabBar
 
 - `contentLength`: Number of tabs
-- `tabBuilder`: Builder function for tab widgets (must return `Text`)
+- `tabBuilder`: Builder function for tab widgets (can return any widget)
 - `controller`: Optional `CyclicTabController`
 - `onTabTap`: Callback when a tab is tapped
 - `indicatorColor`: Color of the selection indicator

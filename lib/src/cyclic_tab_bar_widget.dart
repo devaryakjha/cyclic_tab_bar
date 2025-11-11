@@ -76,10 +76,10 @@ class CyclicTabBar extends StatefulWidget {
 
   /// A callback for building tab contents.
   ///
-  /// Must return a [Text] widget.
+  /// Can return any widget.
   /// `index` is the modulo index (0 to [contentLength] - 1).
   /// `isSelected` indicates whether this tab is currently selected.
-  final SelectIndexedTextBuilder tabBuilder;
+  final SelectIndexedTabBuilder tabBuilder;
 
   /// The controller that coordinates this tab bar with a [CyclicTabBarView].
   ///
@@ -223,22 +223,18 @@ class _CyclicTabBarState extends State<CyclicTabBar>
 
     // Calculate text sizes
     for (var i = 0; i < widget.contentLength; i++) {
-      final text = widget.tabBuilder(i, false);
-      final style = (text.style ?? defaultTextStyle).copyWith(
-        fontFamily: text.style?.fontFamily ?? defaultTextStyle.fontFamily,
-      );
-      final layoutedText = TextPainter(
-        text: TextSpan(text: text.data, style: style),
-        maxLines: 1,
-        locale: text.locale ?? defaultLocale,
-        textScaler: text.textScaler ?? textScaler,
-        textDirection: textDirection,
-      )..layout();
-
-      final calculatedWidth = layoutedText.size.width + widget.tabPadding * 2;
+      final tabContent = widget.tabBuilder(i, false);
       final sizeConstraint =
           widget.forceFixedTabWidth ? _fixedTabWidth : size.width;
-      _tabTextSizes.add(math.min(calculatedWidth, sizeConstraint));
+      final calculatedWidth = _resolveTabWidth(
+        tabContent,
+        defaultTextStyle: defaultTextStyle,
+        textScaler: textScaler,
+        textDirection: textDirection,
+        locale: defaultLocale,
+        sizeConstraint: sizeConstraint,
+      );
+      _tabTextSizes.add(calculatedWidth);
       _tabSizesFromIndex.add(_calculateTabSizeFromIndex(i));
     }
 
@@ -290,6 +286,322 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       fixedTabWidth: _fixedTabWidth,
       totalTabSize: _totalTabSize,
     );
+  }
+
+  double _resolveTabWidth(
+    Widget tabContent, {
+    required TextStyle defaultTextStyle,
+    required TextScaler textScaler,
+    required TextDirection textDirection,
+    required Locale locale,
+    required double sizeConstraint,
+  }) {
+    final measuredContentWidth = _measureWidgetContentWidth(
+      tabContent,
+      defaultTextStyle: defaultTextStyle,
+      textScaler: textScaler,
+      textDirection: textDirection,
+      locale: locale,
+    );
+
+    final availableContentWidth =
+        math.max(0.0, sizeConstraint - widget.tabPadding * 2);
+    final effectiveContentWidth = measuredContentWidth != null
+        ? math.max(0.0, measuredContentWidth)
+        : availableContentWidth;
+    final paddedWidth =
+        math.min(effectiveContentWidth + widget.tabPadding * 2, sizeConstraint);
+    return paddedWidth;
+  }
+
+  double? _measureWidgetContentWidth(
+    Widget widget, {
+    required TextStyle defaultTextStyle,
+    required TextScaler textScaler,
+    required TextDirection textDirection,
+    required Locale locale,
+  }) {
+    if (widget is Text) {
+      return _measureTextWidget(
+        widget,
+        defaultTextStyle,
+        textScaler,
+        textDirection,
+        locale,
+      );
+    }
+
+    if (widget is SelectableText) {
+      return _measureSelectableTextWidget(
+        widget,
+        defaultTextStyle,
+        textScaler,
+        textDirection,
+        locale,
+      );
+    }
+
+    if (widget is RichText) {
+      return _measureRichTextWidget(
+        widget,
+        textDirection,
+        locale,
+      );
+    }
+
+    if (widget is Icon) {
+      final iconTheme = IconTheme.of(context);
+      final iconSize = widget.size ?? iconTheme.size ?? 24.0;
+      return iconSize;
+    }
+
+    if (widget is IconButton) {
+      final iconTheme = IconTheme.of(context);
+      final iconSize = widget.iconSize ?? iconTheme.size ?? 24.0;
+      final constraints = widget.constraints;
+      if (constraints != null) {
+        if (constraints.hasTightWidth) {
+          return constraints.maxWidth;
+        }
+        if (constraints.minWidth > 0) {
+          return constraints.minWidth;
+        }
+      }
+      final paddingGeometry = widget.padding ?? EdgeInsets.zero;
+      final padding = paddingGeometry.resolve(textDirection).horizontal;
+      return iconSize + padding;
+    }
+
+    if (widget is SizedBox) {
+      final width = widget.width;
+      if (width != null) {
+        return width;
+      }
+      final child = widget.child;
+      if (child != null) {
+        return _measureWidgetContentWidth(
+          child,
+          defaultTextStyle: defaultTextStyle,
+          textScaler: textScaler,
+          textDirection: textDirection,
+          locale: locale,
+        );
+      }
+      return 0.0;
+    }
+
+    if (widget is Padding) {
+      final resolvedPadding = widget.padding.resolve(textDirection).horizontal;
+      final childWidth = widget.child != null
+          ? _measureWidgetContentWidth(
+              widget.child!,
+              defaultTextStyle: defaultTextStyle,
+              textScaler: textScaler,
+              textDirection: textDirection,
+              locale: locale,
+            )
+          : 0.0;
+      if (childWidth != null) {
+        return childWidth + resolvedPadding;
+      }
+      return resolvedPadding;
+    }
+
+    if (widget is Container) {
+      final resolvedPadding =
+          widget.padding?.resolve(textDirection).horizontal ?? 0.0;
+
+      final constraints = widget.constraints;
+      if (constraints != null) {
+        if (constraints.hasTightWidth) {
+          return constraints.maxWidth;
+        }
+        if (constraints.minWidth > 0) {
+          return constraints.minWidth;
+        }
+      }
+
+      final child = widget.child;
+      if (child != null) {
+        final childWidth = _measureWidgetContentWidth(
+          child,
+          defaultTextStyle: defaultTextStyle,
+          textScaler: textScaler,
+          textDirection: textDirection,
+          locale: locale,
+        );
+        if (childWidth != null) {
+          return childWidth + resolvedPadding;
+        }
+      }
+
+      if (resolvedPadding > 0) {
+        return resolvedPadding;
+      }
+    }
+
+    if (widget is ConstrainedBox) {
+      final constraints = widget.constraints;
+      if (constraints.hasTightWidth) {
+        return constraints.maxWidth;
+      }
+      if (constraints.minWidth > 0) {
+        return constraints.minWidth;
+      }
+      final child = widget.child;
+      if (child != null) {
+        return _measureWidgetContentWidth(
+          child,
+          defaultTextStyle: defaultTextStyle,
+          textScaler: textScaler,
+          textDirection: textDirection,
+          locale: locale,
+        );
+      }
+    }
+
+    if (widget is Row && widget.mainAxisSize == MainAxisSize.min) {
+      double totalWidth = 0.0;
+      var measurementFailed = false;
+      for (final child in widget.children) {
+        final childWidth = _measureWidgetContentWidth(
+          child,
+          defaultTextStyle: defaultTextStyle,
+          textScaler: textScaler,
+          textDirection: textDirection,
+          locale: locale,
+        );
+        if (childWidth == null) {
+          measurementFailed = true;
+          break;
+        }
+        totalWidth += childWidth;
+      }
+      if (!measurementFailed) {
+        return totalWidth;
+      }
+    }
+
+    if (widget is Column && widget.mainAxisSize == MainAxisSize.min) {
+      double? maxWidth;
+      for (final child in widget.children) {
+        final childWidth = _measureWidgetContentWidth(
+          child,
+          defaultTextStyle: defaultTextStyle,
+          textScaler: textScaler,
+          textDirection: textDirection,
+          locale: locale,
+        );
+        if (childWidth == null) {
+          maxWidth = null;
+          break;
+        }
+        maxWidth = math.max(maxWidth ?? 0.0, childWidth);
+      }
+      if (maxWidth != null) {
+        return maxWidth;
+      }
+    }
+
+    if (widget is PreferredSizeWidget) {
+      final preferredWidth = widget.preferredSize.width;
+      if (preferredWidth.isFinite && preferredWidth > 0) {
+        return preferredWidth;
+      }
+    }
+
+    if (widget is SingleChildRenderObjectWidget) {
+      final child = widget.child;
+      if (child != null) {
+        return _measureWidgetContentWidth(
+          child,
+          defaultTextStyle: defaultTextStyle,
+          textScaler: textScaler,
+          textDirection: textDirection,
+          locale: locale,
+        );
+      }
+      return 0.0;
+    }
+
+    return null;
+  }
+
+  double _measureTextWidget(
+    Text text,
+    TextStyle defaultTextStyle,
+    TextScaler textScaler,
+    TextDirection textDirection,
+    Locale locale,
+  ) {
+    final style = (text.style ?? defaultTextStyle).copyWith(
+      fontFamily: text.style?.fontFamily ?? defaultTextStyle.fontFamily,
+    );
+    final span = text.textSpan ??
+        TextSpan(
+          text: text.data ?? '',
+          style: style,
+        );
+    final painter = TextPainter(
+      text: span,
+      maxLines: text.maxLines ?? 1,
+      locale: text.locale ?? locale,
+      textScaler: text.textScaler ?? textScaler,
+      textDirection: text.textDirection ?? textDirection,
+      textAlign: text.textAlign ?? TextAlign.start,
+      strutStyle: text.strutStyle,
+      textWidthBasis: text.textWidthBasis ?? TextWidthBasis.parent,
+      textHeightBehavior: text.textHeightBehavior,
+    )..layout();
+    return painter.size.width;
+  }
+
+  double _measureSelectableTextWidget(
+    SelectableText text,
+    TextStyle defaultTextStyle,
+    TextScaler textScaler,
+    TextDirection textDirection,
+    Locale locale,
+  ) {
+    final span = text.textSpan ??
+        TextSpan(
+          text: text.data ?? '',
+          style: (text.style ?? defaultTextStyle)
+              .copyWith(fontFamily: defaultTextStyle.fontFamily),
+        );
+    final painter = TextPainter(
+      text: span,
+      maxLines: text.maxLines,
+      locale: locale,
+      textScaler:
+          text.textScaler ?? TextScaler.linear(1.0),
+      textDirection: text.textDirection ?? textDirection,
+      textAlign: text.textAlign ?? TextAlign.start,
+      strutStyle: text.strutStyle,
+      textWidthBasis: text.textWidthBasis ?? TextWidthBasis.parent,
+      textHeightBehavior: text.textHeightBehavior,
+    )..layout();
+    return painter.size.width;
+  }
+
+  double _measureRichTextWidget(
+    RichText text,
+    TextDirection textDirection,
+    Locale locale,
+  ) {
+    final painter = TextPainter(
+      text: text.text,
+      maxLines: text.maxLines,
+      locale: text.locale ?? locale,
+      textScaler: text.textScaler,
+      textDirection: text.textDirection ?? textDirection,
+      textAlign: text.textAlign,
+      strutStyle: text.strutStyle,
+      textWidthBasis: text.textWidthBasis,
+      textHeightBehavior: text.textHeightBehavior,
+      ellipsis: text.overflow == TextOverflow.ellipsis ? '...' : null,
+    )..layout();
+    return painter.size.width;
   }
 
   @override
@@ -486,7 +798,7 @@ class _TabContent extends StatelessWidget {
   final bool isTabPositionAligned;
   final double tabPadding;
   final Color indicatorColor;
-  final SelectIndexedTextBuilder tabBuilder;
+  final SelectIndexedTabBuilder tabBuilder;
   final CyclicTabAlignment alignment;
   final BorderSide? bottomBorder;
   final double indicatorHeight;
@@ -555,22 +867,28 @@ class _CenteredIndicator extends StatelessWidget {
           ? Alignment.centerLeft
           : Alignment.center,
       child: SizedBox(
-        width: size,
+        width: size.normalise(),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               height: indicatorHeight,
-              width: effectiveWidth,
+              width: effectiveWidth.normalise(),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(indicatorHeight),
                 color: indicatorColor,
               ),
             ),
-            SizedBox(width: size - effectiveWidth),
+            SizedBox(width: (size - effectiveWidth).normalise()),
           ],
         ),
       ),
     );
+  }
+}
+
+extension on double {
+  double normalise() {
+    return isNegative ? 0.0 : this;
   }
 }

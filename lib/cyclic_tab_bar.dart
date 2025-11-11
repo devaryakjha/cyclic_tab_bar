@@ -10,7 +10,7 @@ export './src/cyclic_tab_bar_view.dart' show CyclicTabBarView;
 export './src/cyclic_tab_bar.dart'
     show
         SelectIndexedWidgetBuilder,
-        SelectIndexedTextBuilder,
+        SelectIndexedTabBuilder,
         IndexedTapCallback;
 
 // Utilities

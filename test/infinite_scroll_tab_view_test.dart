@@ -878,4 +878,44 @@ void main() {
       controller.dispose();
     });
   });
+
+  group('Custom tab widgets', () {
+    testWidgets('allows building tabs with arbitrary widgets', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 3,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  contentLength: 3,
+                  tabBuilder: (index, isSelected) => Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(isSelected ? Icons.star : Icons.star_border),
+                      const SizedBox(width: 6),
+                      Text('Tab $index'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    contentLength: 3,
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.star_border), findsWidgets);
+      expect(find.text('Tab 0'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

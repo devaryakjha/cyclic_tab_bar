@@ -85,6 +85,12 @@ class CyclicTabBarView extends StatefulWidget {
 
 class _CyclicTabBarViewState extends State<CyclicTabBarView> {
   CyclicTabController? _internalController;
+  late final ValueNotifier<int> _selectedIndexNotifier =
+      ValueNotifier<int>(widget.controller?.index ?? 0);
+  CyclicTabController? _attachedController;
+  int? _lastReportedContentLength;
+
+  int get _contentLength => _controller.contentLength;
 
   CyclicTabController get _controller {
     final explicitController = widget.controller;
@@ -106,12 +112,15 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
 
   void _onIndexChange(int newIndex) {
     widget.onPageChanged?.call(newIndex);
+    if (_selectedIndexNotifier.value != newIndex) {
+      _selectedIndexNotifier.value = newIndex;
+    }
     HapticFeedback.selectionClick();
 
     // Announce page change for accessibility
     if (mounted) {
       SemanticsService.announce(
-        'Page ${newIndex + 1} of ${widget.contentLength}',
+        'Page ${newIndex + 1} of $_contentLength',
         Directionality.of(context),
       );
     }
@@ -124,9 +133,18 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
     // Add index change listener for callbacks
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        _selectedIndexNotifier.value = _controller.index;
         _controller.addIndexChangeListener(_onIndexChange);
+        _attachControllerChangeListener();
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _selectedIndexNotifier.value = _controller.index;
+    _attachControllerChangeListener();
   }
 
   @override
@@ -140,6 +158,8 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
       }
 
       _controller.addIndexChangeListener(_onIndexChange);
+      _selectedIndexNotifier.value = _controller.index;
+      _attachControllerChangeListener(force: true);
     }
   }
 
@@ -150,12 +170,12 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
     Widget buildPage(BuildContext context, int modIndex, int rawIndex) {
       return SizedBox(
         width: size.width,
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            final isSelected = _controller.index == modIndex;
+        child: ValueListenableBuilder<int>(
+          valueListenable: _selectedIndexNotifier,
+          builder: (context, selectedIndex, _) {
+            final isSelected = selectedIndex == modIndex;
             return Semantics(
-              label: 'Page ${modIndex + 1}',
+              label: 'Page ${modIndex + 1} of $_contentLength',
               liveRegion: isSelected,
               child: widget.pageBuilder(context, modIndex, isSelected),
             );
@@ -168,7 +188,7 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
       label: 'Content area',
       child: CycledListView.builder(
         scrollDirection: Axis.horizontal,
-        contentCount: widget.contentLength,
+        contentCount: _contentLength,
         controller: _controller.pageScrollController,
         physics: widget.scrollPhysics,
         itemBuilder: buildPage,
@@ -181,6 +201,32 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
   void dispose() {
     _controller.removeIndexChangeListener(_onIndexChange);
     _internalController?.dispose();
+    _selectedIndexNotifier.dispose();
+    _attachedController?.removeListener(_handleControllerChange);
     super.dispose();
+  }
+
+  void _attachControllerChangeListener({bool force = false}) {
+    final controller = _controller;
+    if (!force && identical(_attachedController, controller)) {
+      return;
+    }
+    _attachedController?.removeListener(_handleControllerChange);
+    _attachedController = controller;
+    _attachedController?.addListener(_handleControllerChange);
+    _lastReportedContentLength = controller.contentLength;
+  }
+
+  void _handleControllerChange() {
+    final controller = _attachedController;
+    if (controller == null) return;
+    final length = controller.contentLength;
+    if (_lastReportedContentLength == length) {
+      return;
+    }
+    _lastReportedContentLength = length;
+    if (mounted) {
+      setState(() {});
+    }
   }
 }

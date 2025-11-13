@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -148,6 +149,8 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     with SingleTickerProviderStateMixin {
   CyclicTabController? _internalController;
   TextScaler _previousTextScaler = TextScaler.noScaling;
+  int? _lastMeasuredContentLength;
+  bool _isTabSizeCalculationScheduled = false;
 
   // Tab size calculation results
   final List<double> _tabTextSizes = [];
@@ -194,20 +197,10 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     return -(size.width - tabSize) / 2;
   }
 
-  double _calculateTabSizeFromIndex(int index) {
-    var size = 0.0;
-    for (var i = 0; i < index; i++) {
-      size += _tabTextSizes[i];
-      // Add spacing after each tab (except the last one)
-      if (widget.tabSpacing > 0) {
-        size += widget.tabSpacing;
-      }
-    }
-    return size;
-  }
-
   void _calculateTabSizes() {
-    if (widget.contentLength <= 0) return;
+    _isTabSizeCalculationScheduled = false;
+    final contentLength = _controller.contentLength;
+    if (contentLength <= 0) return;
 
     final size = MediaQuery.sizeOf(context);
     final textScaler = MediaQuery.textScalerOf(context);
@@ -221,8 +214,12 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     _tabSizeTweens.clear();
     _totalTabSize = 0.0;
 
+    var runningOffset = 0.0;
+
+    _lastMeasuredContentLength = contentLength;
+
     // Calculate text sizes
-    for (var i = 0; i < widget.contentLength; i++) {
+    for (var i = 0; i < contentLength; i++) {
       final tabContent = widget.tabBuilder(i, false);
       final sizeConstraint =
           widget.forceFixedTabWidth ? _fixedTabWidth : size.width;
@@ -235,24 +232,19 @@ class _CyclicTabBarState extends State<CyclicTabBar>
         sizeConstraint: sizeConstraint,
       );
       _tabTextSizes.add(calculatedWidth);
-      _tabSizesFromIndex.add(_calculateTabSizeFromIndex(i));
-    }
+      _tabSizesFromIndex.add(runningOffset);
 
-    // Calculate total size (including spacing)
-    if (widget.forceFixedTabWidth) {
-      _totalTabSize = _fixedTabWidth * widget.contentLength;
+      final widthForOffset =
+          widget.forceFixedTabWidth ? _fixedTabWidth : calculatedWidth;
+      runningOffset += widthForOffset;
       if (widget.tabSpacing > 0) {
-        _totalTabSize += widget.tabSpacing * widget.contentLength;
-      }
-    } else {
-      _totalTabSize = _tabTextSizes.reduce((v, e) => v += e);
-      if (widget.tabSpacing > 0) {
-        _totalTabSize += widget.tabSpacing * widget.contentLength;
+        runningOffset += widget.tabSpacing;
       }
     }
+    _totalTabSize = runningOffset;
 
     // Calculate offset tweens
-    for (var i = 0; i < widget.contentLength; i++) {
+    for (var i = 0; i < contentLength; i++) {
       if (widget.forceFixedTabWidth) {
         // Account for spacing in fixed width mode
         final tabAndSpaceWidth = _fixedTabWidth + widget.tabSpacing;
@@ -261,14 +253,14 @@ class _CyclicTabBarState extends State<CyclicTabBar>
         _tabOffsets.add(Tween(begin: offsetBegin, end: offsetEnd));
       } else {
         final offsetBegin = _tabSizesFromIndex[i] + _alignmentOffset(i);
-        final offsetEnd = i == widget.contentLength - 1
+        final offsetEnd = i == contentLength - 1
             ? _totalTabSize + _alignmentOffset(0)
             : _tabSizesFromIndex[i + 1] + _alignmentOffset(i + 1);
         _tabOffsets.add(Tween(begin: offsetBegin, end: offsetEnd));
       }
 
       final sizeBegin = _tabTextSizes[i];
-      final sizeEnd = _tabTextSizes[(i + 1) % widget.contentLength];
+      final sizeEnd = _tabTextSizes[(i + 1) % contentLength];
       _tabSizeTweens.add(Tween(
         begin: math.min(sizeBegin, _fixedTabWidth),
         end: math.min(sizeEnd, _fixedTabWidth),
@@ -608,11 +600,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     super.initState();
 
     // Calculate sizes after first frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _calculateTabSizes();
-      }
-    });
+    _scheduleTabSizeCalculation();
   }
 
   @override
@@ -622,7 +610,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     final textScaler = MediaQuery.textScalerOf(context);
     if (_previousTextScaler != textScaler) {
       _previousTextScaler = textScaler;
-      _calculateTabSizes();
+      _scheduleTabSizeCalculation();
     }
   }
 
@@ -631,15 +619,17 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     super.didUpdateWidget(oldWidget);
 
     // Recalculate if relevant properties changed
-    if (oldWidget.contentLength != widget.contentLength ||
+    if ((widget.controller == null &&
+            oldWidget.contentLength != widget.contentLength) ||
         oldWidget.forceFixedTabWidth != widget.forceFixedTabWidth ||
         oldWidget.fixedTabWidthFraction != widget.fixedTabWidthFraction ||
         oldWidget.tabPadding != widget.tabPadding) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _calculateTabSizes();
-        }
-      });
+      _scheduleTabSizeCalculation();
+    }
+
+    if (widget.controller == null &&
+        oldWidget.contentLength != widget.contentLength) {
+      unawaited(_controller.setContentLength(widget.contentLength));
     }
   }
 
@@ -655,14 +645,16 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     return Focus(
       onKeyEvent: (node, event) {
         if (!_controller.isInitialized) return KeyEventResult.ignored;
+        final contentLength = _controller.contentLength;
+        if (contentLength <= 0) return KeyEventResult.ignored;
 
         if (event is KeyDownEvent) {
           if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-            final newIndex = (_controller.index - 1) % widget.contentLength;
+            final newIndex = (_controller.index - 1) % contentLength;
             _controller.animateToIndex(newIndex);
             return KeyEventResult.handled;
           } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-            final newIndex = (_controller.index + 1) % widget.contentLength;
+            final newIndex = (_controller.index + 1) % contentLength;
             _controller.animateToIndex(newIndex);
             return KeyEventResult.handled;
           }
@@ -708,7 +700,9 @@ class _CyclicTabBarState extends State<CyclicTabBar>
   }
 
   Widget _buildTabSection() {
+    final contentLength = _controller.contentLength;
     if (!_controller.isInitialized) {
+      _scheduleTabSizeCalculation();
       return const SizedBox.shrink();
     }
 
@@ -724,7 +718,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
           final tab = Semantics(
             button: true,
             selected: isSelected,
-            label: 'Tab ${modIndex + 1} of ${widget.contentLength}',
+            label: 'Tab ${modIndex + 1} of ${_controller.contentLength}',
             hint: isSelected ? 'Currently selected' : 'Double tap to activate',
             child: Material(
               type: MaterialType.transparency,
@@ -741,12 +735,19 @@ class _CyclicTabBarState extends State<CyclicTabBar>
                   bottomBorder: effectiveBottomBorder,
                   tabWidth: widget.forceFixedTabWidth
                       ? _fixedTabWidth
-                      : (_tabTextSizes.isNotEmpty
+                      : (_tabTextSizes.length > modIndex
                           ? _tabTextSizes[modIndex]
-                          : 0),
+                          : (_tabTextSizes.isNotEmpty
+                              ? _tabTextSizes.last
+                              : _fixedTabWidth)),
                   indicatorHeight: _indicatorHeight,
-                  indicatorWidth:
-                      _tabTextSizes.isNotEmpty ? _tabTextSizes[modIndex] : 0,
+                  indicatorWidth: widget.forceFixedTabWidth
+                      ? _fixedTabWidth
+                      : (_tabTextSizes.length > modIndex
+                          ? _tabTextSizes[modIndex]
+                          : (_tabTextSizes.isNotEmpty
+                              ? _tabTextSizes.last
+                              : _fixedTabWidth)),
                   maxIndicatorWidth: widget.maxIndicatorWidth,
                 ),
               ),
@@ -760,10 +761,14 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       );
     }
 
+    if (_lastMeasuredContentLength != contentLength && contentLength > 0) {
+      _scheduleTabSizeCalculation();
+    }
+
     return CycledListView.builder(
       scrollDirection: Axis.horizontal,
       controller: _controller.tabScrollController,
-      contentCount: widget.contentLength,
+      contentCount: contentLength,
       itemBuilder: buildTab,
       itemSpacing: widget.tabSpacing,
     );
@@ -773,6 +778,20 @@ class _CyclicTabBarState extends State<CyclicTabBar>
   void dispose() {
     _internalController?.dispose();
     super.dispose();
+  }
+
+  void _scheduleTabSizeCalculation() {
+    if (_isTabSizeCalculationScheduled) {
+      return;
+    }
+    _isTabSizeCalculationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _isTabSizeCalculationScheduled = false;
+        return;
+      }
+      _calculateTabSizes();
+    });
   }
 }
 

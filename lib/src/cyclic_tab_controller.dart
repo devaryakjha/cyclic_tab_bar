@@ -28,7 +28,7 @@ class CyclicTabController extends ChangeNotifier {
   /// The [initialIndex] must be between 0 and [contentLength] - 1.
   /// The [alignment] determines how tabs are positioned (default: center).
   CyclicTabController({
-    required this.contentLength,
+    required int contentLength,
     int initialIndex = 0,
     this.animationDuration = const Duration(milliseconds: 550),
     this.alignment = CyclicTabAlignment.center,
@@ -38,6 +38,7 @@ class CyclicTabController extends ChangeNotifier {
           initialIndex >= 0 && initialIndex < contentLength,
           'initialIndex must be between 0 and contentLength - 1',
         ),
+        _contentLength = contentLength,
         _selectedIndex = initialIndex,
         _tabScrollController = CycledScrollController(),
         _pageScrollController = CycledScrollController() {
@@ -54,7 +55,8 @@ class CyclicTabController extends ChangeNotifier {
   }
 
   /// The total number of tabs/pages.
-  final int contentLength;
+  int get contentLength => _contentLength;
+  int _contentLength;
 
   /// The duration of the animation when switching tabs.
   final Duration animationDuration;
@@ -130,7 +132,7 @@ class CyclicTabController extends ChangeNotifier {
       return;
     }
 
-    final modIndex = index % contentLength;
+    final modIndex = _normalizeIndex(index, contentLength);
     await onTapTabWithRawIndex(modIndex, modIndex);
   }
 
@@ -141,7 +143,7 @@ class CyclicTabController extends ChangeNotifier {
       return;
     }
 
-    final modIndex = index % contentLength;
+    final modIndex = _normalizeIndex(index, contentLength);
     _selectedIndex = modIndex;
 
     // Jump both controllers to the target position
@@ -152,6 +154,64 @@ class CyclicTabController extends ChangeNotifier {
     _pageScrollController.jumpTo(targetPageOffset);
 
     notifyListeners();
+  }
+
+  /// Sets the selected index, optionally animating to it.
+  Future<void> setIndex(
+    int index, {
+    bool animated = true,
+  }) async {
+    final targetIndex = _normalizeIndex(index, contentLength);
+    if (!isInitialized) {
+      _selectedIndex = targetIndex;
+      _needsInitialNavigation = true;
+      notifyListeners();
+      return;
+    }
+    if (animated) {
+      await animateToIndex(targetIndex);
+    } else {
+      jumpToIndex(targetIndex);
+    }
+  }
+
+  /// Updates the total content length and optionally the selected index.
+  ///
+  /// When [selectedIndex] is omitted, the current index is clamped to the new
+  /// range. Set [animated] to true to animate scroll positions to the new index
+  /// (only when metrics are already initialized).
+  Future<void> setContentLength(
+    int newLength, {
+    int? selectedIndex,
+    bool animated = false,
+  }) async {
+    assert(newLength > 0, 'contentLength must be greater than 0');
+    final lengthChanged = newLength != _contentLength;
+    final targetIndex = _normalizeIndex(
+      selectedIndex ?? _selectedIndex,
+      newLength,
+    );
+
+    if (!lengthChanged) {
+      await setIndex(targetIndex, animated: animated);
+      return;
+    }
+
+    _contentLength = newLength;
+    _resetTabMetrics();
+    _needsInitialNavigation = true;
+
+    if (!isInitialized) {
+      _selectedIndex = targetIndex;
+      notifyListeners();
+      return;
+    }
+
+    if (animated) {
+      await animateToIndex(targetIndex);
+    } else {
+      jumpToIndex(targetIndex);
+    }
   }
 
   /// Adds a listener for page scroll events.
@@ -399,6 +459,26 @@ class CyclicTabController extends ChangeNotifier {
   /// Calculates the page scroll offset for a given index.
   double _calculatePageOffset(int modIndex) {
     return modIndex * _size.width;
+  }
+
+  void _resetTabMetrics() {
+    _tabTextSizes.clear();
+    _tabSizesFromIndex.clear();
+    _tabOffsets.clear();
+    _tabSizeTweens.clear();
+    _totalTabSize = 0.0;
+    _indicatorSize = 0.0;
+  }
+
+  int _normalizeIndex(int index, int length) {
+    if (length == 0) {
+      return 0;
+    }
+    var modIndex = index % length;
+    if (modIndex < 0) {
+      modIndex += length;
+    }
+    return modIndex;
   }
 
   @override

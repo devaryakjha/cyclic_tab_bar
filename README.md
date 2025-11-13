@@ -153,6 +153,15 @@ class _MyWidgetState extends State<MyWidget> with SingleTickerProviderStateMixin
 }
 ```
 
+#### Controller utilities
+
+`CyclicTabController` exposes ergonomic helpers for runtime reconfiguration:
+
+- `setIndex(index, {bool animated = true})` jumps or animates to a new tab without needing to tap.
+- `setContentLength(newLength, {int? selectedIndex, bool animated = false})` updates the total tab/page count and optionally the current selection; `CyclicTabBar` and `CyclicTabBarView` automatically rebuild to reflect the change.
+
+These complement the lower-level `animateToIndex` and `jumpToIndex` methods shown above.
+
 ### Customization Options
 
 #### CyclicTabBar

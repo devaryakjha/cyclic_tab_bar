@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -42,7 +41,6 @@ class CyclicTabBar extends StatefulWidget {
   /// Creates a cyclic tab bar.
   const CyclicTabBar({
     super.key,
-    required this.contentLength,
     required this.tabBuilder,
     this.controller,
     this.onTabTap,
@@ -59,8 +57,7 @@ class CyclicTabBar extends StatefulWidget {
     this.tabPadding = 12.0,
     this.forceFixedTabWidth = false,
     this.fixedTabWidthFraction = 0.5,
-  })  : assert(contentLength > 0, 'contentLength must be greater than 0'),
-        assert(tabHeight > 0, 'tabHeight must be greater than 0'),
+  })  : assert(tabHeight > 0, 'tabHeight must be greater than 0'),
         assert(tabPadding >= 0, 'tabPadding must be non-negative'),
         assert(
           fixedTabWidthFraction > 0 && fixedTabWidthFraction <= 1.0,
@@ -71,9 +68,6 @@ class CyclicTabBar extends StatefulWidget {
           'indicatorHeight must be >= 1.0 when specified',
         ),
         bottomBorder = bottomBorder ?? separator;
-
-  /// The total number of tabs.
-  final int contentLength;
 
   /// A callback for building tab contents.
   ///
@@ -147,7 +141,6 @@ class CyclicTabBar extends StatefulWidget {
 
 class _CyclicTabBarState extends State<CyclicTabBar>
     with SingleTickerProviderStateMixin {
-  CyclicTabController? _internalController;
   TextScaler _previousTextScaler = TextScaler.noScaling;
   int? _lastMeasuredContentLength;
   bool _isTabSizeCalculationScheduled = false;
@@ -169,12 +162,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     try {
       return DefaultCyclicTabController.of(context);
     } catch (e) {
-      // If no controller found, create an internal one
-      _internalController ??= CyclicTabController(
-        contentLength: widget.contentLength,
-        vsync: this,
-      );
-      return _internalController!;
+      rethrow;
     }
   }
 
@@ -619,17 +607,11 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     super.didUpdateWidget(oldWidget);
 
     // Recalculate if relevant properties changed
-    if ((widget.controller == null &&
-            oldWidget.contentLength != widget.contentLength) ||
+    if (widget.controller == null ||
         oldWidget.forceFixedTabWidth != widget.forceFixedTabWidth ||
         oldWidget.fixedTabWidthFraction != widget.fixedTabWidthFraction ||
         oldWidget.tabPadding != widget.tabPadding) {
       _scheduleTabSizeCalculation();
-    }
-
-    if (widget.controller == null &&
-        oldWidget.contentLength != widget.contentLength) {
-      unawaited(_controller.setContentLength(widget.contentLength));
     }
   }
 
@@ -772,12 +754,6 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       itemBuilder: buildTab,
       itemSpacing: widget.tabSpacing,
     );
-  }
-
-  @override
-  void dispose() {
-    _internalController?.dispose();
-    super.dispose();
   }
 
   void _scheduleTabSizeCalculation() {

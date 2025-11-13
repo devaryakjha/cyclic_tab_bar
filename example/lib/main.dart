@@ -105,7 +105,6 @@ class __ContentState extends State<_Content> {
               ],
             ),
             child: CyclicTabBar(
-              contentLength: contents.length,
               onTabTap: (index) {
                 debugPrint('tapped $index');
               },
@@ -124,7 +123,6 @@ class __ContentState extends State<_Content> {
           // Page view
           Expanded(
             child: CyclicTabBarView(
-              contentLength: contents.length,
               onPageChanged: (index) => debugPrint('page changed to $index.'),
               pageBuilder: (context, index, _) {
                 return SizedBox.expand(

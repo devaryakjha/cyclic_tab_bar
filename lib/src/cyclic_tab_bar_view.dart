@@ -36,16 +36,12 @@ class CyclicTabBarView extends StatefulWidget {
   /// Creates a cyclic tab bar view.
   const CyclicTabBarView({
     super.key,
-    required this.contentLength,
     required this.pageBuilder,
     this.controller,
     this.scrollPhysics = const PageScrollPhysics(),
     this.onPageChanged,
     this.pageSpacing = 0.0,
-  }) : assert(contentLength > 0, 'contentLength must be greater than 0');
-
-  /// The total number of pages.
-  final int contentLength;
+  });
 
   /// A callback for building page contents.
   ///
@@ -84,7 +80,6 @@ class CyclicTabBarView extends StatefulWidget {
 }
 
 class _CyclicTabBarViewState extends State<CyclicTabBarView> {
-  CyclicTabController? _internalController;
   late final ValueNotifier<int> _selectedIndexNotifier =
       ValueNotifier<int>(widget.controller?.index ?? 0);
   CyclicTabController? _attachedController;
@@ -102,11 +97,7 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
     try {
       return DefaultCyclicTabController.of(context);
     } catch (e) {
-      // If no controller found, create an internal one
-      _internalController ??= CyclicTabController(
-        contentLength: widget.contentLength,
-      );
-      return _internalController!;
+      rethrow;
     }
   }
 
@@ -200,7 +191,6 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
   @override
   void dispose() {
     _controller.removeIndexChangeListener(_onIndexChange);
-    _internalController?.dispose();
     _selectedIndexNotifier.dispose();
     _attachedController?.removeListener(_handleControllerChange);
     super.dispose();

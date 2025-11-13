@@ -184,9 +184,10 @@ class CyclicTabController extends ChangeNotifier {
     int newLength, {
     int? selectedIndex,
     bool animated = false,
+    bool force = false,
   }) async {
     assert(newLength > 0, 'contentLength must be greater than 0');
-    final lengthChanged = newLength != _contentLength;
+    final lengthChanged = force || newLength != _contentLength;
     final targetIndex = _normalizeIndex(
       selectedIndex ?? _selectedIndex,
       newLength,

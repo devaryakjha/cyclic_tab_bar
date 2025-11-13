@@ -25,12 +25,10 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 3,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -55,12 +53,10 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 1,
                   tabBuilder: (index, _) => const Text('Single'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 1,
                     pageBuilder: (_, __, ___) =>
                         const Center(child: Text('Page 0')),
                   ),
@@ -83,12 +79,10 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 2,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 2,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -112,12 +106,10 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 50,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 50,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -144,13 +136,11 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 3,
                   tabBuilder: (index, _) => Text('Tab $index'),
                   onTabTap: (index) => tappedIndex = index,
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -179,12 +169,10 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 3,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                     onPageChanged: (index) => changedIndices.add(index),
@@ -213,13 +201,11 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 5,
                   tabBuilder: (index, _) => Text('Tab $index'),
                   onTabTap: (index) => tapCount++,
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 5,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -253,14 +239,12 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 4,
                   forceFixedTabWidth: true,
                   fixedTabWidthFraction: 0.3,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 4,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -285,13 +269,11 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 3,
                   indicatorColor: Colors.red,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -313,13 +295,11 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 3,
                   tabHeight: 60.0,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -341,13 +321,11 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 3,
                   bottomBorder: const BorderSide(color: Colors.grey, width: 2),
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -384,13 +362,11 @@ void main() {
                     ],
                   ),
                   child: CyclicTabBar(
-                    contentLength: 3,
                     tabBuilder: (index, _) => Text('Tab $index'),
                   ),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -421,13 +397,11 @@ void main() {
           home: Column(
             children: [
               CyclicTabBar(
-                contentLength: 3,
                 controller: controller,
                 tabBuilder: (index, _) => Text('Tab $index'),
               ),
               Expanded(
                 child: CyclicTabBarView(
-                  contentLength: 3,
                   controller: controller,
                   pageBuilder: (_, index, __) =>
                       Center(child: Text('Page $index')),
@@ -452,13 +426,11 @@ void main() {
           home: Column(
             children: [
               CyclicTabBar(
-                contentLength: 5,
                 controller: controller,
                 tabBuilder: (index, _) => Text('Tab $index'),
               ),
               Expanded(
                 child: CyclicTabBarView(
-                  contentLength: 5,
                   controller: controller,
                   pageBuilder: (_, index, __) =>
                       Center(child: Text('Page $index')),
@@ -491,13 +463,11 @@ void main() {
           home: Column(
             children: [
               CyclicTabBar(
-                contentLength: 10,
                 controller: controller,
                 tabBuilder: (index, _) => Text('Tab $index'),
               ),
               Expanded(
                 child: CyclicTabBarView(
-                  contentLength: 10,
                   controller: controller,
                   pageBuilder: (_, index, __) =>
                       Center(child: Text('Page $index')),
@@ -526,12 +496,10 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 10,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 10,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -611,13 +579,11 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 4,
                   tabBuilder: (index, _) => Text('Tab $index'),
                   tabSpacing: 8.0,
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 4,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -643,12 +609,10 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 3,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                     pageSpacing: 16.0,
@@ -676,12 +640,10 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 3,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -707,13 +669,11 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 3,
                   tabBuilder: (index, _) => Text('Tab $index'),
                   bottomBorder: const BorderSide(color: Colors.blue, width: 3),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),
@@ -742,12 +702,10 @@ void main() {
               child: Column(
                 children: [
                   CyclicTabBar(
-                    contentLength: 5,
                     tabBuilder: (index, _) => Text('Tab $index'),
                   ),
                   Expanded(
                     child: CyclicTabBarView(
-                      contentLength: 5,
                       pageBuilder: (_, index, __) =>
                           Center(child: Text('Page $index')),
                     ),
@@ -778,12 +736,10 @@ void main() {
               child: Column(
                 children: [
                   CyclicTabBar(
-                    contentLength: 5,
                     tabBuilder: (index, _) => Text('Tab $index'),
                   ),
                   Expanded(
                     child: CyclicTabBarView(
-                      contentLength: 5,
                       pageBuilder: (_, index, __) =>
                           Center(child: Text('Page $index')),
                     ),
@@ -813,12 +769,10 @@ void main() {
               child: Column(
                 children: [
                   CyclicTabBar(
-                    contentLength: 5,
                     tabBuilder: (index, _) => Text('Tab $index'),
                   ),
                   Expanded(
                     child: CyclicTabBarView(
-                      contentLength: 5,
                       pageBuilder: (_, index, __) =>
                           Center(child: Text('Page $index')),
                     ),
@@ -850,13 +804,11 @@ void main() {
             body: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 5,
                   controller: controller,
                   tabBuilder: (index, _) => Text('Tab $index'),
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 5,
                     controller: controller,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
@@ -888,7 +840,6 @@ void main() {
             child: Column(
               children: [
                 CyclicTabBar(
-                  contentLength: 3,
                   tabBuilder: (index, isSelected) => Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -900,7 +851,6 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    contentLength: 3,
                     pageBuilder: (_, index, __) =>
                         Center(child: Text('Page $index')),
                   ),

@@ -1,3 +1,4 @@
+import 'package:cyclic_tab_bar/src/cycled_list_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cyclic_tab_bar/cyclic_tab_bar.dart';
@@ -5,17 +6,16 @@ import 'package:cyclic_tab_bar/cyclic_tab_bar.dart';
 void main() {
   group('Input validation', () {
     testWidgets(
-        'Should validate contentLength > 0 in DefaultCyclicTabController',
-        (tester) async {
-      // Build widget with invalid contentLength - should throw assertion
-      expect(
-        () => DefaultCyclicTabController(
-          contentLength: 0,
-          child: Container(),
-        ),
-        throwsAssertionError,
-      );
-    });
+      'Should validate contentLength > 0 in DefaultCyclicTabController',
+      (tester) async {
+        // Build widget with invalid contentLength - should throw assertion
+        expect(
+          () =>
+              DefaultCyclicTabController(contentLength: 0, child: Container()),
+          throwsAssertionError,
+        );
+      },
+    );
 
     testWidgets('Should accept valid contentLength', (tester) async {
       await tester.pumpWidget(
@@ -24,9 +24,7 @@ void main() {
             contentLength: 3,
             child: Column(
               children: [
-                CyclicTabBar(
-                  tabBuilder: (index, _) => Text('Tab $index'),
-                ),
+                CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
                     pageBuilder: (_, index, __) =>
@@ -52,9 +50,7 @@ void main() {
             contentLength: 1,
             child: Column(
               children: [
-                CyclicTabBar(
-                  tabBuilder: (index, _) => const Text('Single'),
-                ),
+                CyclicTabBar(tabBuilder: (index, _) => const Text('Single')),
                 Expanded(
                   child: CyclicTabBarView(
                     pageBuilder: (_, __, ___) =>
@@ -78,9 +74,7 @@ void main() {
             contentLength: 2,
             child: Column(
               children: [
-                CyclicTabBar(
-                  tabBuilder: (index, _) => Text('Tab $index'),
-                ),
+                CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
                     pageBuilder: (_, index, __) =>
@@ -105,9 +99,7 @@ void main() {
             contentLength: 50,
             child: Column(
               children: [
-                CyclicTabBar(
-                  tabBuilder: (index, _) => Text('Tab $index'),
-                ),
+                CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
                     pageBuilder: (_, index, __) =>
@@ -168,9 +160,7 @@ void main() {
             contentLength: 3,
             child: Column(
               children: [
-                CyclicTabBar(
-                  tabBuilder: (index, _) => Text('Tab $index'),
-                ),
+                CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
                     pageBuilder: (_, index, __) =>
@@ -341,8 +331,9 @@ void main() {
   });
 
   group('Custom decoration on tab bar', () {
-    testWidgets('Should allow wrapping tab bar with Container decoration',
-        (tester) async {
+    testWidgets('Should allow wrapping tab bar with Container decoration', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: DefaultCyclicTabController(
@@ -380,11 +371,12 @@ void main() {
       // Verify the tab bar is wrapped in container with decoration
       expect(find.byType(CyclicTabBar), findsOneWidget);
       expect(
-          find.ancestor(
-            of: find.byType(CyclicTabBar),
-            matching: find.byType(Container),
-          ),
-          findsWidgets);
+        find.ancestor(
+          of: find.byType(CyclicTabBar),
+          matching: find.byType(Container),
+        ),
+        findsWidgets,
+      );
     });
   });
 
@@ -486,8 +478,9 @@ void main() {
       controller.dispose();
     });
 
-    testWidgets('Should respect initialIndex in DefaultCyclicTabController',
-        (tester) async {
+    testWidgets('Should respect initialIndex in DefaultCyclicTabController', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: DefaultCyclicTabController(
@@ -495,9 +488,7 @@ void main() {
             initialIndex: 7,
             child: Column(
               children: [
-                CyclicTabBar(
-                  tabBuilder: (index, _) => Text('Tab $index'),
-                ),
+                CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
                     pageBuilder: (_, index, __) =>
@@ -544,29 +535,20 @@ void main() {
   group(
     '''`calculateMoveIndexDistance` function should be return specified number distance correctly.''',
     () {
-      test(
-        'In plus direction.',
-        () {
-          expect(calculateMoveIndexDistance(0, 2, 10), 2);
-          expect(calculateMoveIndexDistance(6, 9, 10), 3);
-        },
-      );
+      test('In plus direction.', () {
+        expect(calculateMoveIndexDistance(0, 2, 10), 2);
+        expect(calculateMoveIndexDistance(6, 9, 10), 3);
+      });
 
-      test(
-        'In minus direction.',
-        () {
-          expect(calculateMoveIndexDistance(9, 7, 10), -2);
-          expect(calculateMoveIndexDistance(4, 1, 10), -3);
-        },
-      );
+      test('In minus direction.', () {
+        expect(calculateMoveIndexDistance(9, 7, 10), -2);
+        expect(calculateMoveIndexDistance(4, 1, 10), -3);
+      });
 
-      test(
-        'While overflow/underflow situation.',
-        () {
-          expect(calculateMoveIndexDistance(8, 2, 10), 4);
-          expect(calculateMoveIndexDistance(1, 7, 10), -4);
-        },
-      );
+      test('While overflow/underflow situation.', () {
+        expect(calculateMoveIndexDistance(8, 2, 10), 4);
+        expect(calculateMoveIndexDistance(1, 7, 10), -4);
+      });
     },
   );
 
@@ -608,9 +590,7 @@ void main() {
             contentLength: 3,
             child: Column(
               children: [
-                CyclicTabBar(
-                  tabBuilder: (index, _) => Text('Tab $index'),
-                ),
+                CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
                     pageBuilder: (_, index, __) =>
@@ -631,17 +611,16 @@ void main() {
       expect(find.text('Page 0'), findsOneWidget);
     });
 
-    testWidgets('Should work without spacing (default behavior)',
-        (tester) async {
+    testWidgets('Should work without spacing (default behavior)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: DefaultCyclicTabController(
             contentLength: 3,
             child: Column(
               children: [
-                CyclicTabBar(
-                  tabBuilder: (index, _) => Text('Tab $index'),
-                ),
+                CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
                     pageBuilder: (_, index, __) =>
@@ -701,9 +680,7 @@ void main() {
               alignment: CyclicTabAlignment.left,
               child: Column(
                 children: [
-                  CyclicTabBar(
-                    tabBuilder: (index, _) => Text('Tab $index'),
-                  ),
+                  CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                   Expanded(
                     child: CyclicTabBarView(
                       pageBuilder: (_, index, __) =>
@@ -735,9 +712,7 @@ void main() {
               alignment: CyclicTabAlignment.center,
               child: Column(
                 children: [
-                  CyclicTabBar(
-                    tabBuilder: (index, _) => Text('Tab $index'),
-                  ),
+                  CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                   Expanded(
                     child: CyclicTabBarView(
                       pageBuilder: (_, index, __) =>
@@ -768,9 +743,7 @@ void main() {
               contentLength: 5,
               child: Column(
                 children: [
-                  CyclicTabBar(
-                    tabBuilder: (index, _) => Text('Tab $index'),
-                  ),
+                  CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                   Expanded(
                     child: CyclicTabBarView(
                       pageBuilder: (_, index, __) =>
@@ -791,8 +764,9 @@ void main() {
       expect(find.byType(CyclicTabBarView), findsOneWidget);
     });
 
-    testWidgets('Should work with explicit controller and left alignment',
-        (tester) async {
+    testWidgets('Should work with explicit controller and left alignment', (
+      tester,
+    ) async {
       final controller = CyclicTabController(
         contentLength: 5,
         alignment: CyclicTabAlignment.left,
@@ -866,6 +840,87 @@ void main() {
       expect(find.byIcon(Icons.star_border), findsWidgets);
       expect(find.text('Tab 0'), findsWidgets);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('Cyclic scroll behavior', () {
+    testWidgets('disables cyclic scroll when tabs fit the viewport', (
+      tester,
+    ) async {
+      const indicatorColor = Colors.purpleAccent;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 2,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  forceFixedTabWidth: true,
+                  fixedTabWidthFraction: 0.2,
+                  indicatorColor: indicatorColor,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CycledListView), findsNothing);
+
+      final indicatorFinder = find.byWidgetPredicate((widget) {
+        if (widget is! Container) return false;
+        final decoration = widget.decoration;
+        return decoration is BoxDecoration &&
+            decoration.color == indicatorColor;
+      });
+
+      expect(indicatorFinder, findsOneWidget);
+
+      final indicatorRect = tester.getRect(indicatorFinder);
+      final tabRect = tester.getRect(find.text('Tab 0').first);
+
+      expect((indicatorRect.center.dx - tabRect.center.dx).abs(), lessThan(4));
+    });
+
+    testWidgets('keeps cyclic scroll when tabs overflow the viewport', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 5,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  forceFixedTabWidth: true,
+                  fixedTabWidthFraction: 0.8,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CycledListView), findsOneWidget);
     });
   });
 }

@@ -33,15 +33,15 @@ class CyclicTabController extends ChangeNotifier {
     this.animationDuration = const Duration(milliseconds: 550),
     this.alignment = CyclicTabAlignment.center,
     TickerProvider? vsync,
-  })  : assert(contentLength > 0, 'contentLength must be greater than 0'),
-        assert(
-          initialIndex >= 0 && initialIndex < contentLength,
-          'initialIndex must be between 0 and contentLength - 1',
-        ),
-        _contentLength = contentLength,
-        _selectedIndex = initialIndex,
-        _tabScrollController = CycledScrollController(),
-        _pageScrollController = CycledScrollController() {
+  }) : assert(contentLength > 0, 'contentLength must be greater than 0'),
+       assert(
+         initialIndex >= 0 && initialIndex < contentLength,
+         'initialIndex must be between 0 and contentLength - 1',
+       ),
+       _contentLength = contentLength,
+       _selectedIndex = initialIndex,
+       _tabScrollController = CycledScrollController(),
+       _pageScrollController = CycledScrollController() {
     if (vsync != null) {
       _indicatorAnimationController = AnimationController(
         vsync: vsync,
@@ -71,6 +71,10 @@ class CyclicTabController extends ChangeNotifier {
   /// Scroll controller for the tab bar.
   CycledScrollController get tabScrollController => _tabScrollController;
   final CycledScrollController _tabScrollController;
+  bool _isCyclicScrollingEnabled = true;
+
+  bool get _canAdjustTabScroll =>
+      _isCyclicScrollingEnabled && _tabScrollController.hasClients;
 
   /// Scroll controller for the page view.
   CycledScrollController get pageScrollController => _pageScrollController;
@@ -147,8 +151,10 @@ class CyclicTabController extends ChangeNotifier {
     _selectedIndex = modIndex;
 
     // Jump both controllers to the target position
-    final targetTabOffset = _calculateTabOffset(modIndex);
-    _tabScrollController.jumpTo(targetTabOffset);
+    if (_canAdjustTabScroll) {
+      final targetTabOffset = _calculateTabOffset(modIndex);
+      _tabScrollController.jumpTo(targetTabOffset);
+    }
 
     final targetPageOffset = _calculatePageOffset(modIndex);
     _pageScrollController.jumpTo(targetPageOffset);
@@ -157,10 +163,7 @@ class CyclicTabController extends ChangeNotifier {
   }
 
   /// Sets the selected index, optionally animating to it.
-  Future<void> setIndex(
-    int index, {
-    bool animated = true,
-  }) async {
+  Future<void> setIndex(int index, {bool animated = true}) async {
     final targetIndex = _normalizeIndex(index, contentLength);
     if (!isInitialized) {
       _selectedIndex = targetIndex;
@@ -245,6 +248,7 @@ class CyclicTabController extends ChangeNotifier {
     required bool forceFixedTabWidth,
     required double fixedTabWidth,
     required double totalTabSize,
+    required bool isCyclicScrollingEnabled,
   }) {
     final wasUninitialized = !isInitialized;
 
@@ -264,6 +268,7 @@ class CyclicTabController extends ChangeNotifier {
     _forceFixedTabWidth = forceFixedTabWidth;
     _fixedTabWidth = fixedTabWidth;
     _totalTabSize = totalTabSize;
+    _isCyclicScrollingEnabled = isCyclicScrollingEnabled;
 
     // Initialize indicator size
     if (_tabTextSizes.isNotEmpty) {
@@ -295,13 +300,18 @@ class CyclicTabController extends ChangeNotifier {
     final currentIndexDecimal = currentIndexDouble - currentIndexDouble.floor();
 
     // Update tab position
-    _tabScrollController.jumpTo(
-      _tabOffsets[currentIndex % contentLength].transform(currentIndexDecimal),
-    );
+    if (_canAdjustTabScroll) {
+      _tabScrollController.jumpTo(
+        _tabOffsets[currentIndex % contentLength].transform(
+          currentIndexDecimal,
+        ),
+      );
+    }
 
     // Update indicator size
-    _indicatorSize = _tabSizeTweens[currentIndex % contentLength]
-        .transform(currentIndexDecimal);
+    _indicatorSize = _tabSizeTweens[currentIndex % contentLength].transform(
+      currentIndexDecimal,
+    );
 
     // Update alignment state
     if (!_isTabPositionAligned) {
@@ -346,30 +356,34 @@ class CyclicTabController extends ChangeNotifier {
     try {
       _isTabPositionAligned = true;
 
-      final sizeOnIndex = _forceFixedTabWidth
-          ? _fixedTabWidth * modIndex
-          : _tabSizesFromIndex[modIndex];
-      final section = rawIndex.isNegative
-          ? (rawIndex + 1) ~/ contentLength - 1
-          : rawIndex ~/ contentLength;
-      final targetOffset = _totalTabSize * section + sizeOnIndex;
-      _isTabForceScrolling = true;
+      if (_canAdjustTabScroll) {
+        final sizeOnIndex = _forceFixedTabWidth
+            ? _fixedTabWidth * modIndex
+            : _tabSizesFromIndex[modIndex];
+        final section = rawIndex.isNegative
+            ? (rawIndex + 1) ~/ contentLength - 1
+            : rawIndex ~/ contentLength;
+        final targetOffset = _totalTabSize * section + sizeOnIndex;
+        _isTabForceScrolling = true;
 
-      // Animate tab scroll
-      unawaited(
-        _tabScrollController
-            .animateTo(
-              targetOffset + _alignmentOffset(modIndex),
-              duration: animationDuration,
-              curve: Curves.ease,
-            )
-            .then((_) => _isTabForceScrolling = false)
-            .catchError((error) {
-          _isTabForceScrolling = false;
-          debugPrint('Tab animation error: $error');
-          return false;
-        }),
-      );
+        // Animate tab scroll
+        unawaited(
+          _tabScrollController
+              .animateTo(
+                targetOffset + _alignmentOffset(modIndex),
+                duration: animationDuration,
+                curve: Curves.ease,
+              )
+              .then((_) => _isTabForceScrolling = false)
+              .catchError((error) {
+                _isTabForceScrolling = false;
+                debugPrint('Tab animation error: $error');
+                return false;
+              }),
+        );
+      } else {
+        _isTabForceScrolling = false;
+      }
 
       // Animate indicator size
       if (_indicatorAnimationController != null) {
@@ -416,7 +430,9 @@ class CyclicTabController extends ChangeNotifier {
 
   /// Internal: Handles tab scroll controller events.
   void _handleTabScroll() {
-    if (_isTabForceScrolling) return;
+    if (!_isCyclicScrollingEnabled || _isTabForceScrolling) {
+      return;
+    }
 
     if (_isTabPositionAligned) {
       _isTabPositionAligned = false;

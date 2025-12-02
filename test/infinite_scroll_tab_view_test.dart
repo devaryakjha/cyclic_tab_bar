@@ -876,6 +876,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CycledListView), findsNothing);
+      expect(find.byType(AnimatedPositioned), findsOneWidget);
 
       final indicatorFinder = find.byWidgetPredicate((widget) {
         if (widget is! Container) return false;
@@ -886,10 +887,27 @@ void main() {
 
       expect(indicatorFinder, findsOneWidget);
 
+      final tab0 = find.text('Tab 0').first;
       final indicatorRect = tester.getRect(indicatorFinder);
-      final tabRect = tester.getRect(find.text('Tab 0').first);
+      final tabRect = tester.getRect(tab0);
 
       expect((indicatorRect.center.dx - tabRect.center.dx).abs(), lessThan(4));
+
+      final tab1 = find.text('Tab 1').first;
+      await tester.tap(tab1);
+      await tester.pumpAndSettle();
+
+      final movedIndicatorRect = tester.getRect(indicatorFinder);
+      final tab1Rect = tester.getRect(tab1);
+
+      expect(
+        (movedIndicatorRect.center.dx - tab1Rect.center.dx).abs(),
+        lessThan(4),
+      );
+      expect(
+        (movedIndicatorRect.center.dx - indicatorRect.center.dx).abs(),
+        greaterThan(4),
+      );
     });
 
     testWidgets('keeps cyclic scroll when tabs overflow the viewport', (

@@ -146,6 +146,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
   int? _lastMeasuredContentLength;
   bool _isTabSizeCalculationScheduled = false;
   bool _shouldUseCyclicScroll = true;
+  double _nonCyclicContentWidth = 0.0;
 
   // Tab size calculation results
   final List<double> _tabTextSizes = [];
@@ -240,6 +241,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       0.0,
       runningOffset - (hasSpacing ? widget.tabSpacing : 0.0),
     );
+    _nonCyclicContentWidth = totalContentWidth;
     final shouldUseCyclicScroll = totalContentWidth > size.width;
     _updateCyclicScrollUsage(shouldUseCyclicScroll);
 
@@ -658,40 +660,124 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       },
       child: Material(
         color: widget.backgroundColor,
-        child: Stack(
-          children: [
-            SizedBox(
-              height: widget.tabHeight + (widget.bottomBorder?.width ?? 0),
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) => AbsorbPointer(
-                  absorbing: _controller.isContentChangingByTab,
-                  child: _buildTabSection(),
-                ),
-              ),
-            ),
-            if (_shouldUseCyclicScroll)
-              Positioned(
-                bottom: 0,
-                left: widget.tabPadding,
-                right: widget.tabPadding,
-                child: AnimatedBuilder(
-                  animation: _controller,
-                  builder: (context, _) => Visibility(
-                    visible: _controller.isTabPositionAligned,
-                    child: _CenteredIndicator(
-                      indicatorColor: widget.indicatorColor,
-                      size: _controller.indicatorSize - (widget.tabPadding * 2),
-                      indicatorHeight: _indicatorHeight,
-                      alignment: _controller.alignment,
-                      maxWidth: widget.maxIndicatorWidth,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = _resolveAvailableWidth(constraints, context);
+
+            return AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final overlay = _shouldUseCyclicScroll
+                    ? _buildCyclicOverlay()
+                    : _buildStaticIndicatorOverlay(availableWidth);
+
+                return Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: [
+                    SizedBox(
+                      height:
+                          widget.tabHeight + (widget.bottomBorder?.width ?? 0),
+                      child: AbsorbPointer(
+                        absorbing: _controller.isContentChangingByTab,
+                        child: _buildTabSection(),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-          ],
+                    if (overlay != null) overlay,
+                  ],
+                );
+              },
+            );
+          },
         ),
       ),
+    );
+  }
+
+  double _resolveAvailableWidth(
+    BoxConstraints constraints,
+    BuildContext context,
+  ) {
+    if (constraints.maxWidth.isFinite) {
+      return constraints.maxWidth;
+    }
+    return MediaQuery.sizeOf(context).width;
+  }
+
+  Widget? _buildCyclicOverlay() {
+    if (!_controller.isInitialized) {
+      return null;
+    }
+
+    return Positioned(
+      bottom: 0,
+      left: widget.tabPadding,
+      right: widget.tabPadding,
+      child: Visibility(
+        visible: _controller.isTabPositionAligned,
+        child: _CenteredIndicator(
+          indicatorColor: widget.indicatorColor,
+          size: _controller.indicatorSize - (widget.tabPadding * 2),
+          indicatorHeight: _indicatorHeight,
+          alignment: _controller.alignment,
+          maxWidth: widget.maxIndicatorWidth,
+        ),
+      ),
+    );
+  }
+
+  Widget? _buildStaticIndicatorOverlay(double availableWidth) {
+    if (!_controller.isInitialized || _tabTextSizes.isEmpty) {
+      return null;
+    }
+
+    final metrics = _calculateStaticIndicatorMetrics(availableWidth);
+    if (metrics == null) {
+      return null;
+    }
+
+    return AnimatedPositioned(
+      duration: _controller.animationDuration,
+      curve: Curves.ease,
+      left: metrics.left,
+      bottom: 0,
+      width: metrics.width,
+      height: _indicatorHeight,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_indicatorHeight),
+          color: widget.indicatorColor,
+        ),
+      ),
+    );
+  }
+
+  _StaticIndicatorMetrics? _calculateStaticIndicatorMetrics(
+    double availableWidth,
+  ) {
+    if (_tabSizesFromIndex.length <= _controller.index) {
+      return null;
+    }
+
+    final tabStart = _tabSizesFromIndex[_controller.index];
+    final tabWidth = widget.forceFixedTabWidth
+        ? _fixedTabWidth
+        : _tabTextSizes[_controller.index];
+
+    final baseOffset = _controller.alignment == CyclicTabAlignment.left
+        ? 0.0
+        : math.max(0.0, (availableWidth - _nonCyclicContentWidth) / 2);
+
+    final rawLeft = baseOffset + tabStart + widget.tabPadding;
+    final unclampedWidth = math.max(0.0, tabWidth - widget.tabPadding * 2);
+    final constrainedWidth = widget.maxIndicatorWidth != null
+        ? math.min(unclampedWidth, widget.maxIndicatorWidth!)
+        : unclampedWidth;
+    final maxLeft = math.max(0.0, availableWidth - constrainedWidth);
+    final indicatorLeft = math.min(rawLeft, maxLeft);
+
+    return _StaticIndicatorMetrics(
+      left: indicatorLeft,
+      width: constrainedWidth,
     );
   }
 
@@ -745,7 +831,6 @@ class _CyclicTabBarState extends State<CyclicTabBar>
                                   ? _tabTextSizes.last
                                   : _fixedTabWidth)),
                   maxIndicatorWidth: widget.maxIndicatorWidth,
-                  showInlineIndicator: !_shouldUseCyclicScroll,
                 ),
               ),
             ),
@@ -818,6 +903,13 @@ class _CyclicTabBarState extends State<CyclicTabBar>
   }
 }
 
+class _StaticIndicatorMetrics {
+  const _StaticIndicatorMetrics({required this.left, required this.width});
+
+  final double left;
+  final double width;
+}
+
 class _TabContent extends StatelessWidget {
   const _TabContent({
     required this.isTabPositionAligned,
@@ -832,7 +924,6 @@ class _TabContent extends StatelessWidget {
     required this.indicatorWidth,
     required this.tabWidth,
     this.maxIndicatorWidth,
-    this.showInlineIndicator = false,
   });
 
   final int modIndex;
@@ -847,7 +938,6 @@ class _TabContent extends StatelessWidget {
   final double indicatorWidth;
   final double tabWidth;
   final double? maxIndicatorWidth;
-  final bool showInlineIndicator;
 
   @override
   Widget build(BuildContext context) {
@@ -867,8 +957,7 @@ class _TabContent extends StatelessWidget {
             ),
           ),
         ),
-        if (selectedIndex == modIndex &&
-            (!isTabPositionAligned || showInlineIndicator))
+        if (selectedIndex == modIndex && !isTabPositionAligned)
           Positioned(
             bottom: 0,
             height: indicatorHeight,

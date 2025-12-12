@@ -151,6 +151,41 @@ void main() {
       expect(tappedIndex, 0);
     });
 
+    testWidgets('Should call onTabLongPress when tab is long pressed', (
+      tester,
+    ) async {
+      var longPressedIndex = -1;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 3,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  onTabLongPress: (index) => longPressedIndex = index,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    pageBuilder: (_, index, __) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final tab1 = find.text('Tab 1').first;
+      await tester.longPress(tab1);
+      await tester.pumpAndSettle();
+
+      expect(longPressedIndex, 1);
+      expect(find.text('Page 1'), findsOneWidget);
+    });
+
     testWidgets('Should have onPageChanged callback', (tester) async {
       final List<int> changedIndices = [];
 

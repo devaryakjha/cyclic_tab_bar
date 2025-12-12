@@ -48,6 +48,7 @@
 - `forceFixedTabWidth`: Enable fixed-width tabs
 - `fixedTabWidthFraction`: Control fixed tab width
 - `onTabTap`: Callback for tab taps
+- `onTabLongPress`: Callback for tab long presses
 - `onPageChanged`: Callback for page changes
 
 ### 📦 REQUIREMENTS

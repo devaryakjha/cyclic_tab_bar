@@ -44,6 +44,7 @@ class CyclicTabBar extends StatefulWidget {
     required this.tabBuilder,
     this.controller,
     this.onTabTap,
+    this.onTabLongPress,
     this.tabSpacing = 0.0,
     @Deprecated(
       'Use bottomBorder instead. separator will be removed in a future version.',
@@ -84,6 +85,9 @@ class CyclicTabBar extends StatefulWidget {
 
   /// Callback when a tab is tapped.
   final IndexedTapCallback? onTabTap;
+
+  /// Callback when a tab is long pressed.
+  final IndexedTapCallback? onTabLongPress;
 
   /// Horizontal spacing between tabs in pixels.
   ///
@@ -637,6 +641,11 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     _controller.onTapTabWithRawIndex(modIndex, rawIndex);
   }
 
+  void _onTabLongPress(int modIndex, int rawIndex) {
+    widget.onTabLongPress?.call(modIndex);
+    _controller.onTapTabWithRawIndex(modIndex, rawIndex);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Focus(
@@ -806,6 +815,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
               type: MaterialType.transparency,
               child: InkWell(
                 onTap: () => _onTabTap(modIndex, rawIndex),
+                onLongPress: () => _onTabLongPress(modIndex, rawIndex),
                 child: _TabContent(
                   isTabPositionAligned: _controller.isTabPositionAligned,
                   selectedIndex: _controller.index,

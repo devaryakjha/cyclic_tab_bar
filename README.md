@@ -170,6 +170,7 @@ These complement the lower-level `animateToIndex` and `jumpToIndex` methods show
 - `tabBuilder`: Builder function for tab widgets (can return any widget)
 - `controller`: Optional `CyclicTabController`
 - `onTabTap`: Callback when a tab is tapped
+- `onTabLongPress`: Callback when a tab is long pressed
 - `indicatorColor`: Color of the selection indicator
 - `indicatorHeight`: Height of the indicator
 - `tabHeight`: Height of the tab bar

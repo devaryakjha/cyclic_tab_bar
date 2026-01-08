@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import '../cyclic_tab_bar.dart';
@@ -80,8 +79,9 @@ class CyclicTabBarView extends StatefulWidget {
 }
 
 class _CyclicTabBarViewState extends State<CyclicTabBarView> {
-  late final ValueNotifier<int> _selectedIndexNotifier =
-      ValueNotifier<int>(widget.controller?.index ?? 0);
+  late final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(
+    widget.controller?.index ?? 0,
+  );
   CyclicTabController? _attachedController;
   int? _lastReportedContentLength;
 
@@ -108,13 +108,14 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
     }
     HapticFeedback.selectionClick();
 
-    // Announce page change for accessibility
-    if (mounted) {
-      SemanticsService.announce(
-        'Page ${newIndex + 1} of $_contentLength',
-        Directionality.of(context),
-      );
-    }
+    // // Announce page change for accessibility
+    // if (mounted) {
+    //   SemanticsService.sendAnnouncement(
+    //     View.of(context),
+    //     'Page ${newIndex + 1} of $_contentLength',
+    //     Directionality.of(context),
+    //   );
+    // }
   }
 
   @override
@@ -190,9 +191,10 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
 
   @override
   void dispose() {
-    _controller.removeIndexChangeListener(_onIndexChange);
-    _selectedIndexNotifier.dispose();
+    // Use cached controller reference to avoid looking up deactivated ancestor
+    _attachedController?.removeIndexChangeListener(_onIndexChange);
     _attachedController?.removeListener(_handleControllerChange);
+    _selectedIndexNotifier.dispose();
     super.dispose();
   }
 

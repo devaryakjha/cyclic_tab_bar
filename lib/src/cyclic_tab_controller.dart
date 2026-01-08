@@ -108,6 +108,9 @@ class CyclicTabController extends ChangeNotifier {
   /// Screen size (set by CyclicTabBar).
   Size _size = Size.zero;
 
+  /// Effective tab bar width (screen width minus insets).
+  double _effectiveTabWidth = 0.0;
+
   /// Fixed tab width (if using fixed width mode).
   double _fixedTabWidth = 0.0;
 
@@ -245,6 +248,7 @@ class CyclicTabController extends ChangeNotifier {
     required List<Tween<double>> tabOffsets,
     required List<Tween<double>> tabSizeTweens,
     required Size size,
+    required double effectiveTabWidth,
     required bool forceFixedTabWidth,
     required double fixedTabWidth,
     required double totalTabSize,
@@ -265,6 +269,7 @@ class CyclicTabController extends ChangeNotifier {
     _tabSizeTweens.addAll(tabSizeTweens);
 
     _size = size;
+    _effectiveTabWidth = effectiveTabWidth;
     _forceFixedTabWidth = forceFixedTabWidth;
     _fixedTabWidth = fixedTabWidth;
     _totalTabSize = totalTabSize;
@@ -460,9 +465,9 @@ class CyclicTabController extends ChangeNotifier {
     if (alignment == CyclicTabAlignment.left) {
       return -0;
     }
-    // Center alignment
+    // Center alignment - use effective tab width, not full screen width
     final tabSize = _forceFixedTabWidth ? _fixedTabWidth : _tabTextSizes[index];
-    return -(_size.width - tabSize) / 2;
+    return -(_effectiveTabWidth - tabSize) / 2;
   }
 
   /// Calculates the tab scroll offset for a given index.

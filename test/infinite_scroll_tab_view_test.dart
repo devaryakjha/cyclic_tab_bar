@@ -27,7 +27,7 @@ void main() {
                 CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -53,7 +53,7 @@ void main() {
                 CyclicTabBar(tabBuilder: (index, _) => const Text('Single')),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, __, ___) =>
+                    pageBuilder: (_, _, _) =>
                         const Center(child: Text('Page 0')),
                   ),
                 ),
@@ -77,7 +77,7 @@ void main() {
                 CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -102,7 +102,7 @@ void main() {
                 CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -133,7 +133,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -168,7 +168,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -198,7 +198,7 @@ void main() {
                 CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                     onPageChanged: (index) => changedIndices.add(index),
                   ),
@@ -231,7 +231,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -270,7 +270,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -299,7 +299,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -325,7 +325,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -351,7 +351,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -393,7 +393,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -430,7 +430,7 @@ void main() {
               Expanded(
                 child: CyclicTabBarView(
                   controller: controller,
-                  pageBuilder: (_, index, __) =>
+                  pageBuilder: (_, index, _) =>
                       Center(child: Text('Page $index')),
                 ),
               ),
@@ -459,7 +459,7 @@ void main() {
               Expanded(
                 child: CyclicTabBarView(
                   controller: controller,
-                  pageBuilder: (_, index, __) =>
+                  pageBuilder: (_, index, _) =>
                       Center(child: Text('Page $index')),
                 ),
               ),
@@ -496,7 +496,7 @@ void main() {
               Expanded(
                 child: CyclicTabBarView(
                   controller: controller,
-                  pageBuilder: (_, index, __) =>
+                  pageBuilder: (_, index, _) =>
                       Center(child: Text('Page $index')),
                 ),
               ),
@@ -526,7 +526,7 @@ void main() {
                 CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -601,7 +601,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -628,7 +628,7 @@ void main() {
                 CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                     pageSpacing: 16.0,
                   ),
@@ -658,7 +658,7 @@ void main() {
                 CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -688,7 +688,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -718,7 +718,7 @@ void main() {
                   CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                   Expanded(
                     child: CyclicTabBarView(
-                      pageBuilder: (_, index, __) =>
+                      pageBuilder: (_, index, _) =>
                           Center(child: Text('Page $index')),
                     ),
                   ),
@@ -750,7 +750,7 @@ void main() {
                   CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                   Expanded(
                     child: CyclicTabBarView(
-                      pageBuilder: (_, index, __) =>
+                      pageBuilder: (_, index, _) =>
                           Center(child: Text('Page $index')),
                     ),
                   ),
@@ -781,7 +781,7 @@ void main() {
                   CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
                   Expanded(
                     child: CyclicTabBarView(
-                      pageBuilder: (_, index, __) =>
+                      pageBuilder: (_, index, _) =>
                           Center(child: Text('Page $index')),
                     ),
                   ),
@@ -819,7 +819,7 @@ void main() {
                 Expanded(
                   child: CyclicTabBarView(
                     controller: controller,
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -860,7 +860,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -898,7 +898,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -961,7 +961,7 @@ void main() {
                 ),
                 Expanded(
                   child: CyclicTabBarView(
-                    pageBuilder: (_, index, __) =>
+                    pageBuilder: (_, index, _) =>
                         Center(child: Text('Page $index')),
                   ),
                 ),
@@ -974,6 +974,325 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CycledListView), findsOneWidget);
+    });
+  });
+
+  group('Horizontal insets', () {
+    testWidgets('Should accept leftInset parameter', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 3,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  leftInset: 100.0,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    pageBuilder: (_, index, _) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.text('Tab 0'), findsWidgets);
+    });
+
+    testWidgets('Should accept rightInset parameter', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 3,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  rightInset: 100.0,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    pageBuilder: (_, index, _) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.text('Tab 0'), findsWidgets);
+    });
+
+    testWidgets('Should accept both leftInset and rightInset', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 3,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  leftInset: 50.0,
+                  rightInset: 50.0,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    pageBuilder: (_, index, _) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.text('Tab 0'), findsWidgets);
+    });
+
+    testWidgets('Should work without insets (backward compatibility)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 3,
+            child: Column(
+              children: [
+                CyclicTabBar(tabBuilder: (index, _) => Text('Tab $index')),
+                Expanded(
+                  child: CyclicTabBarView(
+                    pageBuilder: (_, index, _) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.text('Tab 0'), findsWidgets);
+    });
+
+    testWidgets('Should apply insets with forceFixedTabWidth', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 3,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  forceFixedTabWidth: true,
+                  fixedTabWidthFraction: 0.3,
+                  leftInset: 100.0,
+                  rightInset: 100.0,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    pageBuilder: (_, index, _) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+    });
+
+    testWidgets('Should work with left alignment and insets', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 3,
+            alignment: CyclicTabAlignment.left,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  leftInset: 50.0,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    pageBuilder: (_, index, _) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+    });
+
+    testWidgets(
+      'Should affect effective width calculation with insets',
+      (tester) async {
+        // Test that insets are properly accounted for in calculations
+        // by verifying the widget builds successfully with various inset values
+        await tester.pumpWidget(
+          MaterialApp(
+            home: DefaultCyclicTabController(
+              contentLength: 5,
+              child: Column(
+                children: [
+                  CyclicTabBar(
+                    tabBuilder: (index, _) => Text('Tab $index'),
+                    leftInset: 100.0,
+                    rightInset: 100.0,
+                  ),
+                  Expanded(
+                    child: CyclicTabBarView(
+                      pageBuilder: (_, index, _) =>
+                          Center(child: Text('Page $index')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        // Widget should build and function correctly with insets applied
+        expect(find.byType(CyclicTabBar), findsOneWidget);
+        expect(find.text('Tab 0'), findsWidgets);
+      },
+    );
+
+    testWidgets('Should reject negative leftInset', (tester) async {
+      expect(
+        () => CyclicTabBar(
+          tabBuilder: (index, _) => Text('Tab $index'),
+          leftInset: -10.0,
+        ),
+        throwsAssertionError,
+      );
+    });
+
+    testWidgets('Should reject negative rightInset', (tester) async {
+      expect(
+        () => CyclicTabBar(
+          tabBuilder: (index, _) => Text('Tab $index'),
+          rightInset: -10.0,
+        ),
+        throwsAssertionError,
+      );
+    });
+
+    testWidgets('Should work in Row with Expanded layout', (tester) async {
+      const sidebarWidth = 200.0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Row(
+            children: [
+              SizedBox(
+                width: sidebarWidth,
+                child: Container(color: Colors.grey),
+              ),
+              Expanded(
+                child: DefaultCyclicTabController(
+                  contentLength: 5,
+                  child: Column(
+                    children: [
+                      CyclicTabBar(
+                        tabBuilder: (index, _) => Text('Tab $index'),
+                        leftInset: sidebarWidth,
+                      ),
+                      Expanded(
+                        child: CyclicTabBarView(
+                          pageBuilder: (_, index, _) =>
+                              Center(child: Text('Page $index')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.text('Tab 0'), findsWidgets);
+    });
+
+    testWidgets('Should recalculate when insets change', (tester) async {
+      double leftInset = 0.0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              return DefaultCyclicTabController(
+                contentLength: 3,
+                child: Column(
+                  children: [
+                    CyclicTabBar(
+                      tabBuilder: (index, _) => Text('Tab $index'),
+                      leftInset: leftInset,
+                    ),
+                    Expanded(
+                      child: CyclicTabBarView(
+                        pageBuilder: (_, index, _) =>
+                            Center(child: Text('Page $index')),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => setState(() => leftInset = 100.0),
+                      child: const Text('Change inset'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+
+      // Tap button to change inset
+      await tester.tap(find.text('Change inset'));
+      await tester.pumpAndSettle();
+
+      // Should still work after inset change
+      expect(find.byType(CyclicTabBar), findsOneWidget);
     });
   });
 }

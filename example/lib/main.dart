@@ -38,10 +38,10 @@ class _Content extends StatefulWidget {
   const _Content();
 
   @override
-  __ContentState createState() => __ContentState();
+  _ContentState createState() => _ContentState();
 }
 
-class __ContentState extends State<_Content> {
+class _ContentState extends State<_Content> {
   final contents = List.generate(25, (index) => index + 1);
   CyclicTabAlignment _alignment = CyclicTabAlignment.center;
 

@@ -59,6 +59,8 @@ class CyclicTabBar extends StatefulWidget {
     this.tabPadding = 12.0,
     this.forceFixedTabWidth = false,
     this.fixedTabWidthFraction = 0.5,
+    this.leftInset = 0.0,
+    this.rightInset = 0.0,
   }) : assert(tabHeight > 0, 'tabHeight must be greater than 0'),
        assert(tabPadding >= 0, 'tabPadding must be non-negative'),
        assert(
@@ -69,6 +71,8 @@ class CyclicTabBar extends StatefulWidget {
          indicatorHeight == null || indicatorHeight >= 1.0,
          'indicatorHeight must be >= 1.0 when specified',
        ),
+       assert(leftInset >= 0, 'leftInset must be non-negative'),
+       assert(rightInset >= 0, 'rightInset must be non-negative'),
        bottomBorder = bottomBorder ?? separator;
 
   /// A callback for building tab contents.
@@ -140,6 +144,34 @@ class CyclicTabBar extends StatefulWidget {
   /// Only used when [forceFixedTabWidth] is true.
   final double fixedTabWidthFraction;
 
+  /// Horizontal inset from the left edge.
+  ///
+  /// Use this when the tab bar is placed in a layout that constrains its width
+  /// (e.g., in a Row with Expanded). Set this to the distance from the left
+  /// edge of the screen to the left edge of the tab bar.
+  ///
+  /// This value is subtracted from the screen width when calculating:
+  /// - Whether tabs should scroll (cyclic vs static mode)
+  /// - Center alignment positioning
+  /// - Fixed tab width (when [forceFixedTabWidth] is true)
+  ///
+  /// Defaults to 0.0 (tab bar starts at screen left edge).
+  final double leftInset;
+
+  /// Horizontal inset from the right edge.
+  ///
+  /// Use this when the tab bar is placed in a layout that constrains its width
+  /// (e.g., in a Row with Expanded). Set this to the distance from the right
+  /// edge of the screen to the right edge of the tab bar.
+  ///
+  /// This value is subtracted from the screen width when calculating:
+  /// - Whether tabs should scroll (cyclic vs static mode)
+  /// - Center alignment positioning
+  /// - Fixed tab width (when [forceFixedTabWidth] is true)
+  ///
+  /// Defaults to 0.0 (tab bar extends to screen right edge).
+  final double rightInset;
+
   @override
   State<CyclicTabBar> createState() => _CyclicTabBarState();
 }
@@ -176,21 +208,30 @@ class _CyclicTabBarState extends State<CyclicTabBar>
   double get _indicatorHeight =>
       widget.indicatorHeight ?? widget.bottomBorder?.width ?? 2.0;
 
+  double _effectiveTabBarWidth(Size screenSize) {
+    return math.max(
+      0.0,
+      screenSize.width - widget.leftInset - widget.rightInset,
+    );
+  }
+
   double get _fixedTabWidth {
     final size = MediaQuery.sizeOf(context);
-    return size.width * widget.fixedTabWidthFraction;
+    final effectiveWidth = _effectiveTabBarWidth(size);
+    return effectiveWidth * widget.fixedTabWidthFraction;
   }
 
   double _alignmentOffset(int index) {
     if (_controller.alignment == CyclicTabAlignment.left) {
       return 0;
     }
-    // Center alignment
+    // Center alignment - use effective width for tab bar centering
     final size = MediaQuery.sizeOf(context);
+    final effectiveWidth = _effectiveTabBarWidth(size);
     final tabSize = widget.forceFixedTabWidth
         ? _fixedTabWidth
         : _tabTextSizes[index];
-    return -(size.width - tabSize) / 2;
+    return -(effectiveWidth - tabSize) / 2;
   }
 
   void _calculateTabSizes() {
@@ -199,6 +240,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     if (contentLength <= 0) return;
 
     final size = MediaQuery.sizeOf(context);
+    final effectiveWidth = _effectiveTabBarWidth(size);
     final textScaler = MediaQuery.textScalerOf(context);
     final defaultTextStyle = DefaultTextStyle.of(context).style;
     final textDirection = Directionality.of(context);
@@ -219,7 +261,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       final tabContent = widget.tabBuilder(i, false);
       final sizeConstraint = widget.forceFixedTabWidth
           ? _fixedTabWidth
-          : size.width;
+          : effectiveWidth;
       final calculatedWidth = _resolveTabWidth(
         tabContent,
         defaultTextStyle: defaultTextStyle,
@@ -246,7 +288,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       runningOffset - (hasSpacing ? widget.tabSpacing : 0.0),
     );
     _nonCyclicContentWidth = totalContentWidth;
-    final shouldUseCyclicScroll = totalContentWidth > size.width;
+    final shouldUseCyclicScroll = totalContentWidth > effectiveWidth;
     _updateCyclicScrollUsage(shouldUseCyclicScroll);
 
     // Calculate offset tweens
@@ -282,6 +324,7 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       tabOffsets: _tabOffsets,
       tabSizeTweens: _tabSizeTweens,
       size: size,
+      effectiveTabWidth: effectiveWidth,
       forceFixedTabWidth: widget.forceFixedTabWidth,
       fixedTabWidth: _fixedTabWidth,
       totalTabSize: _totalTabSize,
@@ -629,7 +672,9 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     if (widget.controller == null ||
         oldWidget.forceFixedTabWidth != widget.forceFixedTabWidth ||
         oldWidget.fixedTabWidthFraction != widget.fixedTabWidthFraction ||
-        oldWidget.tabPadding != widget.tabPadding) {
+        oldWidget.tabPadding != widget.tabPadding ||
+        oldWidget.leftInset != widget.leftInset ||
+        oldWidget.rightInset != widget.rightInset) {
       _scheduleTabSizeCalculation();
     }
   }

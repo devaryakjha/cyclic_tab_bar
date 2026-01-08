@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:meta/meta.dart';
 
 import '../cyclic_tab_bar.dart';
@@ -119,6 +120,10 @@ class CyclicTabController extends ChangeNotifier {
 
   /// Total size of all tabs.
   double _totalTabSize = 0.0;
+
+  /// Previous tab section for detecting scroll cycles.
+  /// Used to trigger haptic feedback when manually scrolling wraps around.
+  int? _previousTabSection;
 
   /// Whether the controller has been initialized with tab size data.
   bool get isInitialized => _tabTextSizes.isNotEmpty;
@@ -439,6 +444,19 @@ class CyclicTabController extends ChangeNotifier {
       return;
     }
 
+    // Detect scroll cycles and provide haptic feedback
+    if (_totalTabSize > 0 && _tabScrollController.hasClients) {
+      final offset = _tabScrollController.offset;
+      final currentSection = (offset / _totalTabSize).floor();
+
+      if (_previousTabSection != null &&
+          currentSection != _previousTabSection) {
+        // User manually scrolled across a cycle boundary - provide feedback
+        HapticFeedback.selectionClick();
+      }
+      _previousTabSection = currentSection;
+    }
+
     if (_isTabPositionAligned) {
       _isTabPositionAligned = false;
       notifyListeners();
@@ -489,6 +507,7 @@ class CyclicTabController extends ChangeNotifier {
     _tabOffsets.clear();
     _tabSizeTweens.clear();
     _totalTabSize = 0.0;
+    _previousTabSection = null;
     _indicatorSize = 0.0;
   }
 

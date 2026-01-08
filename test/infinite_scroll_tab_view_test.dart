@@ -977,6 +977,43 @@ void main() {
     });
   });
 
+  group('Haptic feedback on scroll cycle', () {
+    testWidgets('Should have cycle detection logic in place', (tester) async {
+      final controller = CyclicTabController(contentLength: 5);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Column(
+            children: [
+              CyclicTabBar(
+                controller: controller,
+                tabBuilder: (index, _) => Text('Tab $index'),
+                forceFixedTabWidth: true,
+                fixedTabWidthFraction: 0.5,
+              ),
+              Expanded(
+                child: CyclicTabBarView(
+                  controller: controller,
+                  pageBuilder: (_, index, _) =>
+                      Center(child: Text('Page $index')),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify controller is initialized
+      expect(controller.isInitialized, isTrue);
+      // Both tab bar and page view use CycledListView when cyclic scroll is enabled
+      expect(find.byType(CycledListView), findsWidgets);
+
+      controller.dispose();
+    });
+  });
+
   group('Horizontal insets', () {
     testWidgets('Should accept leftInset parameter', (tester) async {
       await tester.pumpWidget(

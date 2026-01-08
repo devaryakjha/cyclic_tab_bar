@@ -1,6 +1,6 @@
 name: cyclic_tab_bar
 description: A Flutter package for cyclic tab bar component with infinite scrolling and full accessibility support.
-version: 1.0.2
+version: 1.0.2+1
 repository: https://github.com/devaryakjha/cyclic_tab_bar
 
 environment:

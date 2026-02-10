@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../cyclic_tab_bar.dart';
-import 'cycled_list_view.dart';
 
 /// A widget that displays pages in a horizontally scrolling view with infinite scroll.
 ///
@@ -79,11 +78,15 @@ class CyclicTabBarView extends StatefulWidget {
 }
 
 class _CyclicTabBarViewState extends State<CyclicTabBarView> {
+  static const int _initialPageSection = 100000;
+
   late final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(
     widget.controller?.index ?? 0,
   );
   CyclicTabController? _attachedController;
   int? _lastReportedContentLength;
+  PageController? _pageController;
+  int _pageControllerContentLength = 0;
 
   int get _contentLength => _controller.contentLength;
 
@@ -137,6 +140,7 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
     super.didChangeDependencies();
     _selectedIndexNotifier.value = _controller.index;
     _attachControllerChangeListener();
+    _ensurePageController();
   }
 
   @override
@@ -152,11 +156,14 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
       _controller.addIndexChangeListener(_onIndexChange);
       _selectedIndexNotifier.value = _controller.index;
       _attachControllerChangeListener(force: true);
+      _ensurePageController(forced: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    _ensurePageController();
+
     return Semantics(
       label: 'Content area',
       child: LayoutBuilder(
@@ -166,7 +173,8 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
               : MediaQuery.sizeOf(context).width;
           _controller.updatePageViewportWidth(viewportWidth);
 
-          Widget buildPage(BuildContext context, int modIndex, int rawIndex) {
+          Widget buildPage(BuildContext context, int rawIndex) {
+            final modIndex = _normalizeIndex(rawIndex, _contentLength);
             return SizedBox(
               width: viewportWidth,
               child: ValueListenableBuilder<int>(
@@ -176,20 +184,20 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
                   return Semantics(
                     label: 'Page ${modIndex + 1} of $_contentLength',
                     liveRegion: isSelected,
-                    child: widget.pageBuilder(context, modIndex, isSelected),
+                    child: Padding(
+                      padding: EdgeInsets.only(right: widget.pageSpacing),
+                      child: widget.pageBuilder(context, modIndex, isSelected),
+                    ),
                   );
                 },
               ),
             );
           }
 
-          return CycledListView.builder(
-            scrollDirection: Axis.horizontal,
-            contentCount: _contentLength,
-            controller: _controller.pageScrollController,
+          return PageView.builder(
+            controller: _pageController,
             physics: widget.scrollPhysics,
-            itemBuilder: buildPage,
-            itemSpacing: widget.pageSpacing,
+            itemBuilder: (context, rawIndex) => buildPage(context, rawIndex),
           );
         },
       ),
@@ -201,6 +209,9 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
     // Use cached controller reference to avoid looking up deactivated ancestor
     _attachedController?.removeIndexChangeListener(_onIndexChange);
     _attachedController?.removeListener(_handleControllerChange);
+    _attachedController?.detachPageAdapter();
+    _pageController?.removeListener(_handlePageTick);
+    _pageController?.dispose();
     _selectedIndexNotifier.dispose();
     super.dispose();
   }
@@ -211,8 +222,13 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
       return;
     }
     _attachedController?.removeListener(_handleControllerChange);
+    _attachedController?.detachPageAdapter();
     _attachedController = controller;
     _attachedController?.addListener(_handleControllerChange);
+    _attachedController?.attachPageAdapter(
+      navigateToRawPage: _navigateToRawPage,
+      currentRawPage: _currentRawPage,
+    );
     _lastReportedContentLength = controller.contentLength;
   }
 
@@ -225,7 +241,95 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
     }
     _lastReportedContentLength = length;
     if (mounted) {
+      _ensurePageController(forced: true);
       setState(() {});
     }
+  }
+
+  Future<void> _navigateToRawPage(double targetRawPage, bool animated) async {
+    final pageController = _pageController;
+    if (pageController == null || !pageController.hasClients) {
+      return;
+    }
+
+    final targetPage = targetRawPage.round();
+    if (animated) {
+      await pageController.animateToPage(
+        targetPage,
+        duration: _controller.animationDuration,
+        curve: Curves.ease,
+      );
+      return;
+    }
+    pageController.jumpToPage(targetPage);
+  }
+
+  double _currentRawPage() {
+    final pageController = _pageController;
+    if (pageController == null) {
+      return _controller.index.toDouble();
+    }
+    return pageController.page ?? pageController.initialPage.toDouble();
+  }
+
+  void _handlePageTick() {
+    final pageController = _pageController;
+    if (pageController == null || !pageController.hasClients) {
+      return;
+    }
+    final page = pageController.page;
+    if (page == null) {
+      return;
+    }
+    _controller.onPagePositionChanged(page);
+  }
+
+  void _ensurePageController({bool forced = false}) {
+    final contentLength = _contentLength;
+    if (contentLength <= 0) {
+      return;
+    }
+
+    final pageController = _pageController;
+    if (!forced &&
+        pageController != null &&
+        _pageControllerContentLength == contentLength) {
+      return;
+    }
+
+    var initialPage = _initialPageSection * contentLength + _controller.index;
+    if (pageController != null) {
+      final previousLength = _pageControllerContentLength;
+      final previousRawPage = pageController.hasClients
+          ? (pageController.page ?? pageController.initialPage.toDouble())
+          : pageController.initialPage.toDouble();
+
+      if (previousLength > 0) {
+        final previousSection = (previousRawPage / previousLength).floor();
+        initialPage = previousSection * contentLength + _controller.index;
+      }
+
+      pageController.removeListener(_handlePageTick);
+      pageController.dispose();
+    }
+
+    _pageControllerContentLength = contentLength;
+    _pageController = PageController(initialPage: initialPage);
+    _pageController?.addListener(_handlePageTick);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _handlePageTick();
+    });
+  }
+
+  int _normalizeIndex(int index, int length) {
+    var modIndex = index % length;
+    if (modIndex < 0) {
+      modIndex += length;
+    }
+    return modIndex;
   }
 }

@@ -32,6 +32,9 @@ class CyclicTabController extends ChangeNotifier {
   bool _isDeferredJumpScheduled = false;
   double? _pendingViewportRealignmentOffset;
   int? _pendingJumpIndex;
+  Future<void> Function(double targetRawPage, bool animated)?
+  _navigateToRawPageCallback;
+  double Function()? _currentRawPageCallback;
 
   /// Creates a controller for cyclic tab bar and tab bar view.
   ///
@@ -145,6 +148,9 @@ class CyclicTabController extends ChangeNotifier {
   final List<VoidCallback> _pageScrollListeners = [];
   final List<ValueChanged<int>> _indexChangeListeners = [];
 
+  bool get _isPageAdapterAttached =>
+      _navigateToRawPageCallback != null && _currentRawPageCallback != null;
+
   /// Animates to the specified tab index.
   ///
   /// This is the primary way to programmatically change the selected tab.
@@ -156,6 +162,24 @@ class CyclicTabController extends ChangeNotifier {
 
     final modIndex = _normalizeIndex(index, contentLength);
     await onTapTabWithRawIndex(modIndex, modIndex);
+  }
+
+  /// Internal: attaches page navigation callbacks from [CyclicTabBarView].
+  @internal
+  void attachPageAdapter({
+    required Future<void> Function(double targetRawPage, bool animated)
+    navigateToRawPage,
+    required double Function() currentRawPage,
+  }) {
+    _navigateToRawPageCallback = navigateToRawPage;
+    _currentRawPageCallback = currentRawPage;
+  }
+
+  /// Internal: detaches page navigation callbacks from [CyclicTabBarView].
+  @internal
+  void detachPageAdapter() {
+    _navigateToRawPageCallback = null;
+    _currentRawPageCallback = null;
   }
 
   /// Immediately changes to the specified tab index without animation.
@@ -319,6 +343,11 @@ class CyclicTabController extends ChangeNotifier {
     final previousWidth = _pageViewportWidth;
     _pageViewportWidth = width;
 
+    // PageView-backed adapter handles viewport-dimension remapping internally.
+    if (_isPageAdapterAttached) {
+      return;
+    }
+
     if (!_didValueChange(previousWidth, width) ||
         !_pageScrollController.hasClients) {
       return;
@@ -428,6 +457,17 @@ class CyclicTabController extends ChangeNotifier {
       _tabScrollController.jumpTo(targetTabOffset);
     }
 
+    if (_isPageAdapterAttached) {
+      final currentRawPage = _currentRawPage;
+      final targetRawPage = _nearestRawIndexForSelected(
+        logicalPage: currentRawPage,
+        selectedIndex: modIndex,
+        length: contentLength,
+      );
+      unawaited(_navigateToRawPageCallback?.call(targetRawPage, false));
+      return;
+    }
+
     final pageWidth = _currentPageViewportWidth;
     if (_pageScrollController.hasClients && pageWidth > 0) {
       final targetPageOffset = modIndex * pageWidth;
@@ -445,6 +485,20 @@ class CyclicTabController extends ChangeNotifier {
     return _pageViewportWidth;
   }
 
+  double get _currentRawPage {
+    final pageFromAdapter = _currentRawPageCallback?.call();
+    if (pageFromAdapter != null) {
+      return pageFromAdapter;
+    }
+
+    final pageWidth = _currentPageViewportWidth;
+    if (_pageScrollController.hasClients && pageWidth > 0) {
+      return _pageScrollController.offset / pageWidth;
+    }
+
+    return _selectedIndex.toDouble();
+  }
+
   bool _didValueChange(double previous, double next) {
     return (previous - next).abs() > _metricsChangeTolerance;
   }
@@ -454,7 +508,8 @@ class CyclicTabController extends ChangeNotifier {
       return;
     }
 
-    if (_pageScrollController.hasClients && _currentPageViewportWidth > 0) {
+    if (_isPageAdapterAttached ||
+        (_pageScrollController.hasClients && _currentPageViewportWidth > 0)) {
       jumpToIndex(index);
       return;
     }
@@ -484,21 +539,37 @@ class CyclicTabController extends ChangeNotifier {
 
     final offset = _pageScrollController.offset;
     final currentIndexDouble = offset / pageWidth;
+    _syncFromRawPage(currentIndexDouble);
+  }
+
+  /// Internal: Called by [CyclicTabBarView] when current raw page changes.
+  @internal
+  void onPagePositionChanged(double rawPage) {
+    if (!isInitialized || _isContentChangingByTab) {
+      return;
+    }
+    _syncFromRawPage(rawPage);
+  }
+
+  void _syncFromRawPage(double currentIndexDouble) {
+    if (contentLength <= 0) {
+      return;
+    }
     final currentIndex = currentIndexDouble.floor();
-    final modIndex = currentIndexDouble.round() % contentLength;
+    final modIndex = _normalizeIndex(currentIndexDouble.round(), contentLength);
     final currentIndexDecimal = currentIndexDouble - currentIndexDouble.floor();
 
     // Update tab position
     if (_canAdjustTabScroll) {
+      final tweenIndex = _normalizeIndex(currentIndex, contentLength);
       _tabScrollController.jumpTo(
-        _tabOffsets[currentIndex % contentLength].transform(
-          currentIndexDecimal,
-        ),
+        _tabOffsets[tweenIndex].transform(currentIndexDecimal),
       );
     }
 
     // Update indicator size
-    _indicatorSize = _tabSizeTweens[currentIndex % contentLength].transform(
+    final sizeTweenIndex = _normalizeIndex(currentIndex, contentLength);
+    _indicatorSize = _tabSizeTweens[sizeTweenIndex].transform(
       currentIndexDecimal,
     );
 
@@ -586,15 +657,20 @@ class CyclicTabController extends ChangeNotifier {
       }
 
       double? targetPageOffset;
-      final pageWidth = _currentPageViewportWidth;
-      if (_pageScrollController.hasClients && pageWidth > 0) {
-        final currentOffset = _pageScrollController.offset;
-        final move = calculateMoveIndexDistance(
-          _selectedIndex,
-          modIndex,
-          contentLength,
-        );
-        targetPageOffset = currentOffset + move * pageWidth;
+      double? targetRawPage;
+      final move = calculateMoveIndexDistance(
+        _selectedIndex,
+        modIndex,
+        contentLength,
+      );
+      if (_isPageAdapterAttached) {
+        targetRawPage = _currentRawPage.roundToDouble() + move;
+      } else {
+        final pageWidth = _currentPageViewportWidth;
+        if (_pageScrollController.hasClients && pageWidth > 0) {
+          final currentOffset = _pageScrollController.offset;
+          targetPageOffset = currentOffset + move * pageWidth;
+        }
       }
 
       _selectedIndex = modIndex;
@@ -607,14 +683,18 @@ class CyclicTabController extends ChangeNotifier {
       notifyListeners();
 
       // Animate page scroll
-      if (targetPageOffset == null) {
-        return;
+      if (targetRawPage != null) {
+        await _navigateToRawPageCallback?.call(targetRawPage, true);
+      } else {
+        if (targetPageOffset == null) {
+          return;
+        }
+        await _pageScrollController.animateTo(
+          targetPageOffset,
+          duration: animationDuration,
+          curve: Curves.ease,
+        );
       }
-      await _pageScrollController.animateTo(
-        targetPageOffset,
-        duration: animationDuration,
-        curve: Curves.ease,
-      );
     } catch (e) {
       debugPrint('Error in _onTapTab: $e');
     } finally {
@@ -708,11 +788,6 @@ class CyclicTabController extends ChangeNotifier {
         ? _fixedTabWidth * modIndex
         : _tabSizesFromIndex[modIndex];
     return sizeOnIndex + _alignmentOffset(modIndex);
-  }
-
-  /// Calculates the page scroll offset for a given index.
-  double _calculatePageOffset(int modIndex) {
-    return modIndex * _currentPageViewportWidth;
   }
 
   void _resetTabMetrics() {

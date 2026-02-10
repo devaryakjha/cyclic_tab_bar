@@ -1083,6 +1083,61 @@ void main() {
       expect(logicalPageAfterResize, closeTo(logicalPageBeforeResize, 0.01));
       expect(find.text('Page 3'), findsWidgets);
     });
+
+    testWidgets(
+      'Should not notify listeners during build on viewport realignment',
+      (tester) async {
+        final controller = CyclicTabController(
+          contentLength: 4,
+          initialIndex: 1,
+        );
+
+        addTearDown(() async {
+          await tester.binding.setSurfaceSize(null);
+          controller.dispose();
+        });
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Row(
+                children: [
+                  const SizedBox(width: 80),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        CyclicTabBar(
+                          controller: controller,
+                          rightInset: 48,
+                          tabBuilder: (index, _) => Text('Tab $index'),
+                        ),
+                        Expanded(
+                          child: CyclicTabBarView(
+                            controller: controller,
+                            pageBuilder: (_, index, _) =>
+                                Center(child: Text('Page $index')),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        await tester.binding.setSurfaceSize(const Size(1000, 500));
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 
   group('Horizontal insets', () {

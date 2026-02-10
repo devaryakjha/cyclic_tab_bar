@@ -26,6 +26,8 @@ class CyclicTabController extends ChangeNotifier {
   static const double _metricsChangeTolerance = 0.5;
   static const int _maxInitialNavigationRetries = 10;
   bool _isDisposed = false;
+  bool _isViewportRealignmentScheduled = false;
+  double? _pendingViewportRealignmentOffset;
 
   /// Creates a controller for cyclic tab bar and tab bar view.
   ///
@@ -324,8 +326,34 @@ class CyclicTabController extends ChangeNotifier {
     final targetOffset = logicalPage * width;
 
     if (_didValueChange(currentOffset, targetOffset)) {
-      _pageScrollController.jumpTo(targetOffset);
+      _scheduleViewportRealignment(targetOffset);
     }
+  }
+
+  void _scheduleViewportRealignment(double targetOffset) {
+    _pendingViewportRealignmentOffset = targetOffset;
+    if (_isViewportRealignmentScheduled) {
+      return;
+    }
+
+    _isViewportRealignmentScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _isViewportRealignmentScheduled = false;
+      if (_isDisposed || !_pageScrollController.hasClients) {
+        _pendingViewportRealignmentOffset = null;
+        return;
+      }
+
+      final pendingOffset = _pendingViewportRealignmentOffset;
+      _pendingViewportRealignmentOffset = null;
+      if (pendingOffset == null) {
+        return;
+      }
+
+      if (_didValueChange(_pageScrollController.offset, pendingOffset)) {
+        _pageScrollController.jumpTo(pendingOffset);
+      }
+    });
   }
 
   bool _didValueChange(double previous, double next) {

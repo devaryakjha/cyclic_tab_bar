@@ -23,6 +23,10 @@ enum CyclicTabAlignment {
 /// You can create a controller manually or use [DefaultCyclicTabController]
 /// to have one created automatically.
 class CyclicTabController extends ChangeNotifier {
+  static const double _metricsChangeTolerance = 0.5;
+  static const int _maxInitialNavigationRetries = 10;
+  bool _isDisposed = false;
+
   /// Creates a controller for cyclic tab bar and tab bar view.
   ///
   /// The [contentLength] must be greater than zero.
@@ -106,8 +110,8 @@ class CyclicTabController extends ChangeNotifier {
   final List<Tween<double>> _tabOffsets = [];
   final List<Tween<double>> _tabSizeTweens = [];
 
-  /// Screen size (set by CyclicTabBar).
-  Size _size = Size.zero;
+  /// Current viewport width used for page offset/index calculations.
+  double _pageViewportWidth = 0.0;
 
   /// Effective tab bar width (screen width minus insets).
   double _effectiveTabWidth = 0.0;
@@ -164,8 +168,10 @@ class CyclicTabController extends ChangeNotifier {
       _tabScrollController.jumpTo(targetTabOffset);
     }
 
-    final targetPageOffset = _calculatePageOffset(modIndex);
-    _pageScrollController.jumpTo(targetPageOffset);
+    if (_pageScrollController.hasClients && _pageViewportWidth > 0) {
+      final targetPageOffset = _calculatePageOffset(modIndex);
+      _pageScrollController.jumpTo(targetPageOffset);
+    }
 
     notifyListeners();
   }
@@ -252,7 +258,6 @@ class CyclicTabController extends ChangeNotifier {
     required List<double> tabSizesFromIndex,
     required List<Tween<double>> tabOffsets,
     required List<Tween<double>> tabSizeTweens,
-    required Size size,
     required double effectiveTabWidth,
     required bool forceFixedTabWidth,
     required double fixedTabWidth,
@@ -273,7 +278,6 @@ class CyclicTabController extends ChangeNotifier {
     _tabSizeTweens.clear();
     _tabSizeTweens.addAll(tabSizeTweens);
 
-    _size = size;
     _effectiveTabWidth = effectiveTabWidth;
     _forceFixedTabWidth = forceFixedTabWidth;
     _fixedTabWidth = fixedTabWidth;
@@ -291,7 +295,7 @@ class CyclicTabController extends ChangeNotifier {
       // Use a post-frame callback to ensure the scroll controllers are ready
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (isInitialized) {
-          jumpToIndex(_selectedIndex);
+          _jumpToIndexWhenReady(_selectedIndex);
         }
       });
     }
@@ -299,12 +303,69 @@ class CyclicTabController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Internal: Updates the page viewport width from [CyclicTabBarView].
+  @internal
+  void updatePageViewportWidth(double width) {
+    if (_isDisposed || width <= 0) {
+      return;
+    }
+
+    final previousWidth = _pageViewportWidth;
+    _pageViewportWidth = width;
+
+    if (!_didValueChange(previousWidth, width) ||
+        !_pageScrollController.hasClients) {
+      return;
+    }
+
+    final currentOffset = _pageScrollController.offset;
+    final oldWidth = previousWidth > 0 ? previousWidth : width;
+    final logicalPage = currentOffset / oldWidth;
+    final targetOffset = logicalPage * width;
+
+    if (_didValueChange(currentOffset, targetOffset)) {
+      _pageScrollController.jumpTo(targetOffset);
+    }
+  }
+
+  bool _didValueChange(double previous, double next) {
+    return (previous - next).abs() > _metricsChangeTolerance;
+  }
+
+  void _jumpToIndexWhenReady(int index, {int retryCount = 0}) {
+    if (_isDisposed || !isInitialized) {
+      return;
+    }
+
+    if (_pageScrollController.hasClients && _pageViewportWidth > 0) {
+      jumpToIndex(index);
+      return;
+    }
+
+    if (retryCount >= _maxInitialNavigationRetries) {
+      _selectedIndex = _normalizeIndex(index, contentLength);
+      if (!_isDisposed) {
+        notifyListeners();
+      }
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_isDisposed) {
+        return;
+      }
+      _jumpToIndexWhenReady(index, retryCount: retryCount + 1);
+    });
+  }
+
   /// Internal: Handles page scroll controller events.
   void _handlePageScroll() {
-    if (!isInitialized || _isContentChangingByTab) return;
+    if (!isInitialized || _isContentChangingByTab || _pageViewportWidth <= 0) {
+      return;
+    }
 
     final offset = _pageScrollController.offset;
-    final currentIndexDouble = offset / _size.width;
+    final currentIndexDouble = offset / _pageViewportWidth;
     final currentIndex = currentIndexDouble.floor();
     final modIndex = currentIndexDouble.round() % contentLength;
     final currentIndexDecimal = currentIndexDouble - currentIndexDouble.floor();
@@ -406,14 +467,16 @@ class CyclicTabController extends ChangeNotifier {
         _indicatorSize = _tabTextSizes[modIndex];
       }
 
-      // Calculate page offset
-      final currentOffset = _pageScrollController.offset;
-      final move = calculateMoveIndexDistance(
-        _selectedIndex,
-        modIndex,
-        contentLength,
-      );
-      final targetPageOffset = currentOffset + move * _size.width;
+      double? targetPageOffset;
+      if (_pageScrollController.hasClients && _pageViewportWidth > 0) {
+        final currentOffset = _pageScrollController.offset;
+        final move = calculateMoveIndexDistance(
+          _selectedIndex,
+          modIndex,
+          contentLength,
+        );
+        targetPageOffset = currentOffset + move * _pageViewportWidth;
+      }
 
       _selectedIndex = modIndex;
 
@@ -425,6 +488,9 @@ class CyclicTabController extends ChangeNotifier {
       notifyListeners();
 
       // Animate page scroll
+      if (targetPageOffset == null) {
+        return;
+      }
       await _pageScrollController.animateTo(
         targetPageOffset,
         duration: animationDuration,
@@ -498,7 +564,7 @@ class CyclicTabController extends ChangeNotifier {
 
   /// Calculates the page scroll offset for a given index.
   double _calculatePageOffset(int modIndex) {
-    return modIndex * _size.width;
+    return modIndex * _pageViewportWidth;
   }
 
   void _resetTabMetrics() {
@@ -524,6 +590,7 @@ class CyclicTabController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _tabScrollController.dispose();
     _pageScrollController.dispose();
     _indicatorAnimationController?.dispose();

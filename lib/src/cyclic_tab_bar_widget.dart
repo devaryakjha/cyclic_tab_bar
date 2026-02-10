@@ -178,7 +178,9 @@ class CyclicTabBar extends StatefulWidget {
 
 class _CyclicTabBarState extends State<CyclicTabBar>
     with SingleTickerProviderStateMixin {
+  static const double _mediaQuerySizeTolerance = 0.5;
   TextScaler _previousTextScaler = TextScaler.noScaling;
+  Size _previousScreenSize = Size.zero;
   int? _lastMeasuredContentLength;
   bool _isTabSizeCalculationScheduled = false;
   bool _shouldUseCyclicScroll = true;
@@ -323,7 +325,6 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       tabSizesFromIndex: _tabSizesFromIndex,
       tabOffsets: _tabOffsets,
       tabSizeTweens: _tabSizeTweens,
-      size: size,
       effectiveTabWidth: effectiveWidth,
       forceFixedTabWidth: widget.forceFixedTabWidth,
       fixedTabWidth: _fixedTabWidth,
@@ -658,8 +659,11 @@ class _CyclicTabBarState extends State<CyclicTabBar>
     super.didChangeDependencies();
 
     final textScaler = MediaQuery.textScalerOf(context);
-    if (_previousTextScaler != textScaler) {
+    final screenSize = MediaQuery.sizeOf(context);
+    if (_previousTextScaler != textScaler ||
+        _didScreenSizeChange(_previousScreenSize, screenSize)) {
       _previousTextScaler = textScaler;
+      _previousScreenSize = screenSize;
       _scheduleTabSizeCalculation();
     }
   }
@@ -940,6 +944,11 @@ class _CyclicTabBarState extends State<CyclicTabBar>
       }
       _calculateTabSizes();
     });
+  }
+
+  bool _didScreenSizeChange(Size previous, Size next) {
+    return (previous.width - next.width).abs() > _mediaQuerySizeTolerance ||
+        (previous.height - next.height).abs() > _mediaQuerySizeTolerance;
   }
 
   void _updateCyclicScrollUsage(bool shouldUseCyclicScroll) {

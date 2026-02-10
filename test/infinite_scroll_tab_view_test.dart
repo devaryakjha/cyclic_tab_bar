@@ -1014,6 +1014,77 @@ void main() {
     });
   });
 
+  group('Orientation handling', () {
+    testWidgets('Should keep page aligned after viewport size changes', (
+      tester,
+    ) async {
+      final controller = CyclicTabController(contentLength: 5, initialIndex: 2);
+
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+        controller.dispose();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                CyclicTabBar(
+                  controller: controller,
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  forceFixedTabWidth: true,
+                  fixedTabWidthFraction: 0.45,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    controller: controller,
+                    pageBuilder: (_, index, _) =>
+                        Center(child: Text('Page $index')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      controller.animateToIndex(3);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+
+      expect(controller.index, 3);
+      final initialViewWidth = tester
+          .getSize(find.byType(CyclicTabBarView))
+          .width;
+      final logicalPageBeforeResize =
+          controller.pageScrollController.offset / initialViewWidth;
+
+      final initialViewSize = tester.getSize(find.byType(CyclicTabBarView));
+      final resizedSurface = Size(
+        initialViewSize.height,
+        initialViewSize.width,
+      );
+
+      await tester.binding.setSurfaceSize(resizedSurface);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(controller.index, 3);
+      final resizedViewWidth = tester
+          .getSize(find.byType(CyclicTabBarView))
+          .width;
+      final logicalPageAfterResize =
+          controller.pageScrollController.offset / resizedViewWidth;
+      expect(logicalPageAfterResize, closeTo(logicalPageBeforeResize, 0.01));
+      expect(find.text('Page 3'), findsWidgets);
+    });
+  });
+
   group('Horizontal insets', () {
     testWidgets('Should accept leftInset parameter', (tester) async {
       await tester.pumpWidget(
@@ -1191,41 +1262,40 @@ void main() {
       expect(find.byType(CyclicTabBar), findsOneWidget);
     });
 
-    testWidgets(
-      'Should affect effective width calculation with insets',
-      (tester) async {
-        // Test that insets are properly accounted for in calculations
-        // by verifying the widget builds successfully with various inset values
-        await tester.pumpWidget(
-          MaterialApp(
-            home: DefaultCyclicTabController(
-              contentLength: 5,
-              child: Column(
-                children: [
-                  CyclicTabBar(
-                    tabBuilder: (index, _) => Text('Tab $index'),
-                    leftInset: 100.0,
-                    rightInset: 100.0,
+    testWidgets('Should affect effective width calculation with insets', (
+      tester,
+    ) async {
+      // Test that insets are properly accounted for in calculations
+      // by verifying the widget builds successfully with various inset values
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultCyclicTabController(
+            contentLength: 5,
+            child: Column(
+              children: [
+                CyclicTabBar(
+                  tabBuilder: (index, _) => Text('Tab $index'),
+                  leftInset: 100.0,
+                  rightInset: 100.0,
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    pageBuilder: (_, index, _) =>
+                        Center(child: Text('Page $index')),
                   ),
-                  Expanded(
-                    child: CyclicTabBarView(
-                      pageBuilder: (_, index, _) =>
-                          Center(child: Text('Page $index')),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        );
+        ),
+      );
 
-        await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-        // Widget should build and function correctly with insets applied
-        expect(find.byType(CyclicTabBar), findsOneWidget);
-        expect(find.text('Tab 0'), findsWidgets);
-      },
-    );
+      // Widget should build and function correctly with insets applied
+      expect(find.byType(CyclicTabBar), findsOneWidget);
+      expect(find.text('Tab 0'), findsWidgets);
+    });
 
     testWidgets('Should reject negative leftInset', (tester) async {
       expect(

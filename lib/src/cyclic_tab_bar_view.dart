@@ -157,34 +157,41 @@ class _CyclicTabBarViewState extends State<CyclicTabBarView> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-
-    Widget buildPage(BuildContext context, int modIndex, int rawIndex) {
-      return SizedBox(
-        width: size.width,
-        child: ValueListenableBuilder<int>(
-          valueListenable: _selectedIndexNotifier,
-          builder: (context, selectedIndex, _) {
-            final isSelected = selectedIndex == modIndex;
-            return Semantics(
-              label: 'Page ${modIndex + 1} of $_contentLength',
-              liveRegion: isSelected,
-              child: widget.pageBuilder(context, modIndex, isSelected),
-            );
-          },
-        ),
-      );
-    }
-
     return Semantics(
       label: 'Content area',
-      child: CycledListView.builder(
-        scrollDirection: Axis.horizontal,
-        contentCount: _contentLength,
-        controller: _controller.pageScrollController,
-        physics: widget.scrollPhysics,
-        itemBuilder: buildPage,
-        itemSpacing: widget.pageSpacing,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final viewportWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : MediaQuery.sizeOf(context).width;
+          _controller.updatePageViewportWidth(viewportWidth);
+
+          Widget buildPage(BuildContext context, int modIndex, int rawIndex) {
+            return SizedBox(
+              width: viewportWidth,
+              child: ValueListenableBuilder<int>(
+                valueListenable: _selectedIndexNotifier,
+                builder: (context, selectedIndex, _) {
+                  final isSelected = selectedIndex == modIndex;
+                  return Semantics(
+                    label: 'Page ${modIndex + 1} of $_contentLength',
+                    liveRegion: isSelected,
+                    child: widget.pageBuilder(context, modIndex, isSelected),
+                  );
+                },
+              ),
+            );
+          }
+
+          return CycledListView.builder(
+            scrollDirection: Axis.horizontal,
+            contentCount: _contentLength,
+            controller: _controller.pageScrollController,
+            physics: widget.scrollPhysics,
+            itemBuilder: buildPage,
+            itemSpacing: widget.pageSpacing,
+          );
+        },
       ),
     );
   }

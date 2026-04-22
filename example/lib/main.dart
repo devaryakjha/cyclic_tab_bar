@@ -24,23 +24,35 @@ class ExampleApp extends StatelessWidget {
 class ExampleHomePage extends StatelessWidget {
   const ExampleHomePage({super.key});
 
-  static const _tabs = [
-    Tab(text: 'Overview'),
-    Tab(text: 'Metrics'),
-    Tab(text: 'Alerts'),
-    Tab(text: 'Profile'),
-  ];
   static const _titles = [
     'Overview',
     'Metrics',
     'Alerts',
     'Profile',
+    'Billing',
+    'Traffic',
+    'Playback',
+    'Settings',
+  ];
+  static const _tabs = [
+    Tab(text: 'Overview'),
+    Tab(text: 'Metrics'),
+    Tab(text: 'Alerts'),
+    Tab(text: 'Profile'),
+    Tab(text: 'Billing'),
+    Tab(text: 'Traffic'),
+    Tab(text: 'Playback'),
+    Tab(text: 'Settings'),
   ];
   static const _messages = [
     'Baseline source copy of Flutter tabs.',
     'Interaction currently matches Flutter exactly.',
     'Infinite behavior is intentionally deferred.',
     'This package will diverge after the baseline is locked.',
+    'Use this longer strip to feel the edge extension more clearly.',
+    'A real scroll distance makes the cyclic reveal easier to judge.',
+    'Trackpad and wheel overscroll should now participate too.',
+    'Once the duplicated edge is out of view, the strip should normalize.',
   ];
 
   @override
@@ -63,11 +75,15 @@ class ExampleHomePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "This example uses the package copy of Flutter's TabBar and TabBarView. Infinite behavior is not added yet.",
+                  "This example uses a longer scrollable strip so edge extension is easier to test. Pull past either end and look for the next cycle to peek in and attach.",
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 24),
-                const CyclicTabBar(tabs: _tabs, isScrollable: true, tabAlignment: TabAlignment.start),
+                const CyclicTabBar(
+                  tabs: _tabs,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                ),
                 const SizedBox(height: 24),
                 Expanded(
                   child: CyclicTabBarView(

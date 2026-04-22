@@ -1303,11 +1303,14 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
   ScrollController? _scrollController;
   TabController? _controller;
   _IndicatorPainter? _indicatorPainter;
+  _IndicatorPainter? _stretchPreviewIndicatorPainter;
   int? _currentIndex;
   late double _tabStripWidth;
   double _singleCycleTabStripWidth = 0.0;
   late List<GlobalKey> _tabKeys;
+  late List<GlobalKey> _stretchPreviewTabKeys;
   late List<EdgeInsetsGeometry> _labelPaddings;
+  late List<EdgeInsetsGeometry> _stretchPreviewLabelPaddings;
   late final AnimationController _stretchController;
   _CyclicStretchDirection? _stretchDirection;
   _CyclicTabStripMode _stripMode = _CyclicTabStripMode.normal;
@@ -1329,8 +1332,11 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
     // If indicatorSize is TabIndicatorSize.label, _tabKeys[i] is used to find
     // the width of tab widget i. See _IndicatorPainter.indicatorRect().
     _tabKeys = <GlobalKey>[];
+    _stretchPreviewTabKeys = <GlobalKey>[];
     _labelPaddings = <EdgeInsetsGeometry>[];
+    _stretchPreviewLabelPaddings = <EdgeInsetsGeometry>[];
     _syncRenderedTabArtifacts();
+    _syncStretchPreviewArtifacts();
   }
 
   List<_RenderedTabEntry> get _renderedTabEntries {
@@ -1384,6 +1390,31 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
       );
     } else if (_labelPaddings.length > renderedTabCount) {
       _labelPaddings.removeRange(renderedTabCount, _labelPaddings.length);
+    }
+  }
+
+  void _syncStretchPreviewArtifacts() {
+    final int tabCount = widget.tabs.length;
+    if (_stretchPreviewTabKeys.length < tabCount) {
+      _stretchPreviewTabKeys.addAll(
+        List<GlobalKey>.generate(
+          tabCount - _stretchPreviewTabKeys.length,
+          (int index) => GlobalKey(),
+        ),
+      );
+    } else if (_stretchPreviewTabKeys.length > tabCount) {
+      _stretchPreviewTabKeys.removeRange(tabCount, _stretchPreviewTabKeys.length);
+    }
+
+    if (_stretchPreviewLabelPaddings.length < tabCount) {
+      _stretchPreviewLabelPaddings.addAll(
+        List<EdgeInsetsGeometry>.filled(
+          tabCount - _stretchPreviewLabelPaddings.length,
+          EdgeInsets.zero,
+        ),
+      );
+    } else if (_stretchPreviewLabelPaddings.length > tabCount) {
+      _stretchPreviewLabelPaddings.removeRange(tabCount, _stretchPreviewLabelPaddings.length);
     }
   }
 
@@ -1541,6 +1572,43 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
     oldPainter?.dispose();
   }
 
+  void _initStretchPreviewIndicatorPainter() {
+    final TabBarThemeData tabBarTheme = TabBarTheme.of(context);
+    final TabBarIndicatorSize indicatorSize =
+        widget.indicatorSize ?? tabBarTheme.indicatorSize ?? _defaults.indicatorSize!;
+
+    final _IndicatorPainter? oldPainter = _stretchPreviewIndicatorPainter;
+
+    final TabIndicatorAnimation defaultTabIndicatorAnimation = switch (indicatorSize) {
+      TabBarIndicatorSize.label => TabIndicatorAnimation.elastic,
+      TabBarIndicatorSize.tab => TabIndicatorAnimation.linear,
+    };
+
+    _stretchPreviewIndicatorPainter = !_controllerIsValid
+        ? null
+        : _IndicatorPainter(
+            controller: _controller!,
+            indicator: _getIndicator(indicatorSize),
+            indicatorSize: indicatorSize,
+            indicatorPadding: widget.indicatorPadding,
+            tabKeys: _stretchPreviewTabKeys,
+            old: oldPainter,
+            labelPaddings: _stretchPreviewLabelPaddings,
+            dividerColor: null,
+            dividerHeight: null,
+            showDivider: false,
+            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+            indicatorAnimation:
+                widget.indicatorAnimation ??
+                tabBarTheme.indicatorAnimation ??
+                defaultTabIndicatorAnimation,
+            indexOffsets: const <int>[0],
+            textDirection: Directionality.of(context),
+          );
+
+    oldPainter?.dispose();
+  }
+
   void _updateStripMode(_CyclicTabStripMode stripMode) {
     if (_stripMode == stripMode) {
       return;
@@ -1562,6 +1630,7 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
     super.didChangeDependencies();
     _updateTabController();
     _initIndicatorPainter();
+    _initStretchPreviewIndicatorPainter();
   }
 
   @override
@@ -1575,11 +1644,13 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
       _extensionCommitPending = false;
       _singleCycleTabStripWidth = 0.0;
       _syncRenderedTabArtifacts();
+      _syncStretchPreviewArtifacts();
     }
 
     if (widget.controller != oldWidget.controller) {
       _updateTabController();
       _initIndicatorPainter();
+      _initStretchPreviewIndicatorPainter();
       // Adjust scroll position.
       if (_scrollController != null && _scrollController!.hasClients) {
         final ScrollPosition position = _scrollController!.position;
@@ -1596,12 +1667,14 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
         widget.dividerHeight != oldWidget.dividerHeight ||
         widget.indicatorAnimation != oldWidget.indicatorAnimation) {
       _initIndicatorPainter();
+      _initStretchPreviewIndicatorPainter();
     }
   }
 
   @override
   void dispose() {
     _indicatorPainter?.dispose();
+    _stretchPreviewIndicatorPainter?.dispose();
     if (_controllerIsValid) {
       _controller!.animation!.removeListener(_handleTabControllerAnimationTick);
       _controller!.removeListener(_handleTabControllerTick);
@@ -1747,6 +1820,14 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
     _maybeNormalizeCyclicExtension(collapseToNormal: true);
   }
 
+  void _saveStretchPreviewTabOffsets(
+    List<double> tabOffsets,
+    TextDirection textDirection,
+    double _,
+  ) {
+    _stretchPreviewIndicatorPainter?.saveTabOffsets(tabOffsets, textDirection);
+  }
+
   void _maybeNormalizeCyclicExtension({required bool collapseToNormal}) {
     if (_stripMode == _CyclicTabStripMode.normal ||
         _normalizationPending ||
@@ -1757,19 +1838,25 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
     }
 
     final ScrollPosition position = _scrollController!.position;
+    final double seam = _singleCycleTabStripWidth;
+    final double leftEdge = position.pixels;
+    final double rightEdge = position.pixels + position.viewportDimension;
     double? normalizedPixels;
     switch (_stripMode) {
       case _CyclicTabStripMode.normal:
         break;
       case _CyclicTabStripMode.extendedLeading:
-        if (position.pixels + position.viewportDimension <
-            _singleCycleTabStripWidth - _kCyclicNormalizationEpsilon) {
+        if (rightEdge < seam - _kCyclicNormalizationEpsilon) {
           normalizedPixels = position.pixels;
+        } else if (leftEdge > seam + _kCyclicNormalizationEpsilon) {
+          normalizedPixels = position.pixels - seam;
         }
         break;
       case _CyclicTabStripMode.extendedTrailing:
-        if (position.pixels > _singleCycleTabStripWidth + _kCyclicNormalizationEpsilon) {
-          normalizedPixels = position.pixels - _singleCycleTabStripWidth;
+        if (leftEdge > seam + _kCyclicNormalizationEpsilon) {
+          normalizedPixels = position.pixels - seam;
+        } else if (rightEdge < seam - _kCyclicNormalizationEpsilon) {
+          normalizedPixels = position.pixels;
         }
         break;
     }
@@ -1938,26 +2025,31 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
       return const SizedBox.shrink();
     }
 
+    _syncStretchPreviewArtifacts();
     final bool previewOnLeft = _previewAppearsOnLeft(textDirection);
     final List<Widget> previewTabs = List<Widget>.generate(widget.tabs.length, (int index) {
       final EdgeInsetsGeometry padding = _effectiveLabelPaddingForTab(widget.tabs[index], tabBarTheme);
-      return Center(
+      _stretchPreviewLabelPaddings[index] = padding;
+      Widget previewTab = Center(
         heightFactor: 1.0,
-        child: Padding(padding: padding, child: widget.tabs[index]),
+        child: Padding(
+          padding: padding,
+          child: KeyedSubtree(key: _stretchPreviewTabKeys[index], child: widget.tabs[index]),
+        ),
       );
+      previewTab = _buildStyledTab(
+        previewTab,
+        index == _currentIndex,
+        kAlwaysDismissedAnimation,
+        _defaults,
+      );
+      return previewTab;
     });
 
-    final Widget previewStrip = _TabStyle(
-      animation: kAlwaysDismissedAnimation,
-      isSelected: false,
-      isPrimary: widget._isPrimary,
-      labelColor: widget.labelColor,
-      unselectedLabelColor: widget.unselectedLabelColor,
-      labelStyle: widget.labelStyle,
-      unselectedLabelStyle: widget.unselectedLabelStyle,
-      defaults: _defaults,
+    final Widget previewStrip = CustomPaint(
+      painter: _stretchPreviewIndicatorPainter,
       child: _TabLabelBar(
-        onPerformLayout: (List<double> _, TextDirection __, double ___) {},
+        onPerformLayout: _saveStretchPreviewTabOffsets,
         mainAxisSize: MainAxisSize.min,
         children: previewTabs,
       ),

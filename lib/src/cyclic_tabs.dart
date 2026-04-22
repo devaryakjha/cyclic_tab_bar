@@ -1312,7 +1312,9 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
   _CyclicStretchDirection? _stretchDirection;
   _CyclicTabStripMode _stripMode = _CyclicTabStripMode.normal;
   int _activeRenderCycleIndexValue = 0;
+  bool _extensionCommitPending = false;
   bool _normalizationPending = false;
+  ValueNotifier<bool>? _scrollingNotifier;
   bool _debugHasScheduledValidTabsCountCheck = false;
 
   @override
@@ -1570,6 +1572,7 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
       _stretchDirection = null;
       _stripMode = _CyclicTabStripMode.normal;
       _activeRenderCycleIndexValue = 0;
+      _extensionCommitPending = false;
       _singleCycleTabStripWidth = 0.0;
       _syncRenderedTabArtifacts();
     }
@@ -1603,11 +1606,37 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
       _controller!.animation!.removeListener(_handleTabControllerAnimationTick);
       _controller!.removeListener(_handleTabControllerTick);
     }
+    _detachScrollingNotifier();
     _controller = null;
     _stretchController.dispose();
     _scrollController?.dispose();
     // We don't own the _controller Animation, so it's not disposed here.
     super.dispose();
+  }
+
+  void _handleScrollActivityChanged() {
+    _normalizeCyclicExtensionIfSettled();
+  }
+
+  void _detachScrollingNotifier() {
+    _scrollingNotifier?.removeListener(_handleScrollActivityChanged);
+    _scrollingNotifier = null;
+  }
+
+  void _syncScrollingNotifier() {
+    if (_scrollController == null || !_scrollController!.hasClients) {
+      _detachScrollingNotifier();
+      return;
+    }
+
+    final ValueNotifier<bool> notifier = _scrollController!.position.isScrollingNotifier;
+    if (identical(_scrollingNotifier, notifier)) {
+      return;
+    }
+
+    _detachScrollingNotifier();
+    _scrollingNotifier = notifier;
+    notifier.addListener(_handleScrollActivityChanged);
   }
 
   EdgeInsetsGeometry _effectiveLabelPaddingForTab(Widget tab, TabBarThemeData tabBarTheme) {
@@ -1673,6 +1702,7 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
     _stretchController.stop();
     _stretchController.value = 0.0;
     _stretchDirection = null;
+    _extensionCommitPending = true;
 
     _updateStripMode(
       switch (direction) {
@@ -1683,6 +1713,7 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
 
     WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
       if (!mounted || _scrollController == null || !_scrollController!.hasClients) {
+        _extensionCommitPending = false;
         return;
       }
       final ScrollPosition position = _scrollController!.position;
@@ -1693,8 +1724,27 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
       _scrollController!.jumpTo(
         clampDouble(targetPixels, position.minScrollExtent, position.maxScrollExtent),
       );
+      _extensionCommitPending = false;
+      _normalizeCyclicExtensionIfSettled();
       HapticFeedback.selectionClick();
     });
+  }
+
+  void _normalizeCyclicExtensionIfSettled() {
+    if (_stripMode == _CyclicTabStripMode.normal ||
+        _extensionCommitPending ||
+        _normalizationPending ||
+        _scrollController == null ||
+        !_scrollController!.hasClients) {
+      return;
+    }
+
+    final ScrollPosition position = _scrollController!.position;
+    if (position.isScrollingNotifier.value) {
+      return;
+    }
+
+    _maybeNormalizeCyclicExtension(collapseToNormal: true);
   }
 
   void _maybeNormalizeCyclicExtension({required bool collapseToNormal}) {
@@ -1806,9 +1856,13 @@ class _TabBarState extends State<CyclicTabBar> with SingleTickerProviderStateMix
       return false;
     }
 
+    _syncScrollingNotifier();
+
     if (_stripMode != _CyclicTabStripMode.normal) {
-      if (notification is ScrollUpdateNotification ||
-          notification is ScrollEndNotification ||
+      if (_extensionCommitPending) {
+        return false;
+      }
+      if (notification is ScrollEndNotification ||
           (notification is UserScrollNotification && notification.direction == ScrollDirection.idle)) {
         _maybeNormalizeCyclicExtension(collapseToNormal: true);
       }

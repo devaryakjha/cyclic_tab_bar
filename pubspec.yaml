@@ -1,10 +1,10 @@
 name: cyclic_tab_bar
-description: "A Flutter package for a cyclic tab bar."
+description: "A source-synced Flutter TabBar/TabBarView baseline for a cyclic tab bar."
 version: 0.0.1
 
 environment:
-  sdk: ^3.8.0
-  flutter: ">=1.17.0"
+  sdk: ^3.10.0
+  flutter: ">=3.41.0"
 
 dependencies:
   flutter:

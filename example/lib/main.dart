@@ -21,23 +21,27 @@ class ExampleApp extends StatelessWidget {
   }
 }
 
-class ExampleHomePage extends StatefulWidget {
+class ExampleHomePage extends StatelessWidget {
   const ExampleHomePage({super.key});
 
-  @override
-  State<ExampleHomePage> createState() => _ExampleHomePageState();
-}
-
-class _ExampleHomePageState extends State<ExampleHomePage> {
-  static const _tabs = ['Overview', 'Metrics', 'Alerts', 'Profile'];
-  static const _messages = [
-    'Overview keeps the current product state in view.',
-    'Metrics highlights the numbers that matter right now.',
-    'Alerts surfaces events that need a quick decision.',
-    'Profile closes the loop with account-level controls.',
+  static const _tabs = [
+    Tab(text: 'Overview'),
+    Tab(text: 'Metrics'),
+    Tab(text: 'Alerts'),
+    Tab(text: 'Profile'),
   ];
-
-  int _currentIndex = 0;
+  static const _titles = [
+    'Overview',
+    'Metrics',
+    'Alerts',
+    'Profile',
+  ];
+  static const _messages = [
+    'Baseline source copy of Flutter tabs.',
+    'Interaction currently matches Flutter exactly.',
+    'Infinite behavior is intentionally deferred.',
+    'This package will diverge after the baseline is locked.',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -48,67 +52,66 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Cycle through tabs from either edge.',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'The previous and next buttons wrap automatically, so moving left from the first item lands on the last one.',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 24),
-              CyclicTabBar(
-                labels: _tabs,
-                currentIndex: _currentIndex,
-                onIndexChanged: (index) {
-                  setState(() {
-                    _currentIndex = index;
-                  });
-                },
-              ),
-              const SizedBox(height: 24),
-              Expanded(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        colorScheme.primaryContainer,
-                        colorScheme.secondaryContainer,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _tabs[_currentIndex],
-                          style: Theme.of(context).textTheme.displaySmall,
+          child: DefaultTabController(
+            length: _tabs.length,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Vendored Flutter tabs first.',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "This example uses the package copy of Flutter's TabBar and TabBarView. Infinite behavior is not added yet.",
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 24),
+                const CyclicTabBar(tabs: _tabs, isScrollable: true, tabAlignment: TabAlignment.start),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: CyclicTabBarView(
+                    children: List<Widget>.generate(_tabs.length, (index) {
+                      return DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              colorScheme.primaryContainer,
+                              colorScheme.secondaryContainer,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(28),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _messages[_currentIndex],
-                          style: Theme.of(context).textTheme.titleMedium,
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _titles[index],
+                                style: Theme.of(context).textTheme.displaySmall,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _messages[index],
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Tab ${index + 1} of ${_tabs.length}',
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                            ],
+                          ),
                         ),
-                        const Spacer(),
-                        Text(
-                          'Normalized index: ${normalizeCyclicIndex(_currentIndex, _tabs.length)}',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                      ],
-                    ),
+                      );
+                    }),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

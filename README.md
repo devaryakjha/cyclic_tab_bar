@@ -1,7 +1,11 @@
 # cyclic_tab_bar
 
-A lightweight Flutter package for building tab bars with previous and next
-controls that wrap around cyclically.
+A Flutter package that starts from a source-level copy of Flutter's
+`TabBar` and `TabBarView`, exposed as `CyclicTabBar` and
+`CyclicTabBarView`.
+
+The current baseline intentionally matches Flutter's behavior exactly.
+Infinite/cyclic behavior comes in a later step.
 
 ## Getting Started
 
@@ -16,15 +20,35 @@ dependencies:
 ## Usage
 
 ```dart
-CyclicTabBar(
-  labels: const ['Overview', 'Metrics', 'Alerts'],
-  currentIndex: currentIndex,
-  onIndexChanged: (index) {
-    setState(() {
-      currentIndex = index;
-    });
-  },
+DefaultTabController(
+  length: 3,
+  child: Column(
+    children: [
+      const CyclicTabBar(
+        tabs: [
+          Tab(text: 'Overview'),
+          Tab(text: 'Metrics'),
+          Tab(text: 'Alerts'),
+        ],
+      ),
+      const Expanded(
+        child: CyclicTabBarView(
+          children: [
+            Center(child: Text('Overview view')),
+            Center(child: Text('Metrics view')),
+            Center(child: Text('Alerts view')),
+          ],
+        ),
+      ),
+    ],
+  ),
 )
 ```
+
+## Source Sync
+
+The vendored implementation is synced from Flutter `3.41.7`
+`packages/flutter/lib/src/material/tabs.dart`, with the public widget names
+renamed to `CyclicTabBar` and `CyclicTabBarView`.
 
 The repository also includes a runnable example app in `example/`.

@@ -3,37 +3,45 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('normalizeCyclicIndex wraps positive and negative indexes', () {
-    expect(normalizeCyclicIndex(0, 3), 0);
-    expect(normalizeCyclicIndex(4, 3), 1);
-    expect(normalizeCyclicIndex(-1, 3), 2);
-  });
-
-  test('normalizeCyclicIndex rejects empty collections', () {
-    expect(() => normalizeCyclicIndex(0, 0), throwsA(isA<ArgumentError>()));
-  });
-
-  testWidgets('CyclicTabBar emits wrapped indexes from cycle buttons', (
-    tester,
-  ) async {
-    int? tappedIndex;
-
+  testWidgets('CyclicTabBar and CyclicTabBarView stay in sync', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: CyclicTabBar(
-            labels: const ['Home', 'Explore', 'Profile'],
-            currentIndex: 0,
-            onIndexChanged: (index) => tappedIndex = index,
+      const MaterialApp(
+        home: DefaultTabController(
+          length: 3,
+          child: Scaffold(
+            body: Column(
+              children: [
+                CyclicTabBar(
+                  
+                  tabs: [
+                    Tab(text: 'Home'),
+                    Tab(text: 'Explore'),
+                    Tab(text: 'Profile'),
+                  ],
+                ),
+                Expanded(
+                  child: CyclicTabBarView(
+                    children: [
+                      Center(child: Text('Home panel')),
+                      Center(child: Text('Explore panel')),
+                      Center(child: Text('Profile panel')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
 
-    await tester.tap(find.byIcon(Icons.chevron_left_rounded));
-    expect(tappedIndex, 2);
+    expect(find.text('Home panel'), findsOneWidget);
+    expect(find.text('Explore panel'), findsNothing);
 
-    await tester.tap(find.byIcon(Icons.chevron_right_rounded));
-    expect(tappedIndex, 1);
+    await tester.tap(find.text('Explore'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Explore panel'), findsOneWidget);
+    expect(find.text('Home panel'), findsNothing);
   });
 }

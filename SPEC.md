@@ -12,7 +12,13 @@ framework widgets.
   (`packages/flutter/lib/src/material/tabs.dart`).
 - Rename only the two public widgets to `CyclicTabBar` and
   `CyclicTabBarView`.
-- Keep behavior identical to Flutter's widgets for this first step.
+- Keep Flutter behavior unless a package-specific extension is documented here.
+- Add optional fixed-width indicator sizing with configurable horizontal
+  alignment for `CyclicTabBar`.
+- Clamp fixed-width indicators to the available tab or label width after
+  `indicatorPadding` is applied so narrow tabs do not overflow.
+- Apply the fixed-width indicator behavior to both the default underline
+  indicator and custom `Decoration` indicators.
 - Update the example and tests to use the vendored widgets.
 
 ## Acceptance Criteria
@@ -20,6 +26,10 @@ framework widgets.
 - The package exports `CyclicTabBar` and `CyclicTabBarView`.
 - The implementation is copied from Flutter source, not implemented by
   subclassing `TabBar` or `TabBarView`.
-- The first package version does not add infinite/cyclic behavior yet.
 - `example/` demonstrates the vendored widgets with a shared
   `DefaultTabController`.
+- `CyclicTabBar` exposes `indicatorFixedWidth` and
+  `indicatorFixedWidthAlignment`.
+- When `indicatorFixedWidth` is set, the painted indicator width is
+  `min(indicatorFixedWidth, availableIndicatorWidth)` and the remaining space
+  is distributed according to `indicatorFixedWidthAlignment`.

@@ -291,6 +291,8 @@ class _IndicatorPainter extends CustomPainter {
     required List<GlobalKey> tabKeys,
     required _IndicatorPainter? old,
     required EdgeInsetsGeometry indicatorPadding,
+    double? indicatorFixedWidth,
+    required AlignmentGeometry indicatorFixedWidthAlignment,
     required List<EdgeInsetsGeometry> labelPaddings,
     Color? dividerColor,
     double? dividerHeight,
@@ -313,6 +315,8 @@ class _IndicatorPainter extends CustomPainter {
       tabKeys: tabKeys,
       old: old,
       indicatorPadding: indicatorPadding,
+      indicatorFixedWidth: indicatorFixedWidth,
+      indicatorFixedWidthAlignment: indicatorFixedWidthAlignment,
       labelPaddings: labelPaddings,
       dividerColor: dividerColor,
       dividerHeight: dividerHeight,
@@ -332,6 +336,8 @@ class _IndicatorPainter extends CustomPainter {
     required this.tabKeys,
     required _IndicatorPainter? old,
     required this.indicatorPadding,
+    this.indicatorFixedWidth,
+    required this.indicatorFixedWidthAlignment,
     required this.labelPaddings,
     this.dividerColor,
     this.dividerHeight,
@@ -358,6 +364,8 @@ class _IndicatorPainter extends CustomPainter {
   final Decoration indicator;
   final TabBarIndicatorSize indicatorSize;
   final EdgeInsetsGeometry indicatorPadding;
+  final double? indicatorFixedWidth;
+  final AlignmentGeometry indicatorFixedWidthAlignment;
   final List<GlobalKey> tabKeys;
   final List<EdgeInsetsGeometry> labelPaddings;
   final Color? dividerColor;
@@ -448,7 +456,27 @@ class _IndicatorPainter extends CustomPainter {
         'Rect Size : ${rect.size}, Insets: $insets',
       );
     }
-    return insets.deflateRect(rect);
+    return _applyFixedIndicatorWidth(insets.deflateRect(rect));
+  }
+
+  Rect _applyFixedIndicatorWidth(Rect rect) {
+    final double? fixedWidth = indicatorFixedWidth;
+    if (fixedWidth == null) {
+      return rect;
+    }
+
+    final Alignment resolvedAlignment = indicatorFixedWidthAlignment.resolve(
+      _currentTextDirection,
+    );
+    final double clampedWidth = math.min(fixedWidth, rect.width);
+    final double horizontalFactor = clampDouble(
+      (resolvedAlignment.x + 1.0) / 2.0,
+      0.0,
+      1.0,
+    );
+    final double left =
+        rect.left + ((rect.width - clampedWidth) * horizontalFactor);
+    return Rect.fromLTWH(left, rect.top, clampedWidth, rect.height);
   }
 
   @override
@@ -844,6 +872,8 @@ class CyclicTabBar extends StatefulWidget implements PreferredSizeWidget {
     this.indicatorPadding = EdgeInsets.zero,
     this.indicator,
     this.indicatorSize,
+    this.indicatorFixedWidth,
+    this.indicatorFixedWidthAlignment = Alignment.center,
     this.dividerColor,
     this.dividerHeight,
     this.labelColor,
@@ -865,7 +895,8 @@ class CyclicTabBar extends StatefulWidget implements PreferredSizeWidget {
     this.textScaler,
     this.indicatorAnimation,
   }) : _isPrimary = true,
-       assert(indicator != null || (indicatorWeight > 0.0));
+       assert(indicator != null || (indicatorWeight > 0.0)),
+       assert(indicatorFixedWidth == null || indicatorFixedWidth > 0.0);
 
   /// Creates a Material Design secondary tab bar.
   ///
@@ -899,6 +930,8 @@ class CyclicTabBar extends StatefulWidget implements PreferredSizeWidget {
     this.indicatorPadding = EdgeInsets.zero,
     this.indicator,
     this.indicatorSize,
+    this.indicatorFixedWidth,
+    this.indicatorFixedWidthAlignment = Alignment.center,
     this.dividerColor,
     this.dividerHeight,
     this.labelColor,
@@ -920,7 +953,8 @@ class CyclicTabBar extends StatefulWidget implements PreferredSizeWidget {
     this.textScaler,
     this.indicatorAnimation,
   }) : _isPrimary = false,
-       assert(indicator != null || (indicatorWeight > 0.0));
+       assert(indicator != null || (indicatorWeight > 0.0)),
+       assert(indicatorFixedWidth == null || indicatorFixedWidth > 0.0);
 
   /// Typically a list of two or more [Tab] widgets.
   ///
@@ -1024,6 +1058,20 @@ class CyclicTabBar extends StatefulWidget implements PreferredSizeWidget {
   /// the [indicatorColor], [indicatorWeight], [indicatorPadding], and
   /// [indicator] properties.
   final TabBarIndicatorSize? indicatorSize;
+
+  /// The fixed width for the selected tab indicator.
+  ///
+  /// When non-null, the indicator width is clamped to the available tab or
+  /// label bounds after [indicatorPadding] is applied, so narrow tabs never
+  /// overflow. This sizing is applied to both the default underline indicator
+  /// and custom [indicator] decorations.
+  final double? indicatorFixedWidth;
+
+  /// The horizontal alignment for a fixed-width tab indicator.
+  ///
+  /// This is only used when [indicatorFixedWidth] is non-null. The vertical
+  /// component is ignored.
+  final AlignmentGeometry indicatorFixedWidthAlignment;
 
   /// The color of the divider.
   ///
@@ -1653,6 +1701,8 @@ class _TabBarState extends State<CyclicTabBar>
             indicator: _getIndicator(indicatorSize),
             indicatorSize: indicatorSize,
             indicatorPadding: widget.indicatorPadding,
+            indicatorFixedWidth: widget.indicatorFixedWidth,
+            indicatorFixedWidthAlignment: widget.indicatorFixedWidthAlignment,
             tabKeys: _tabKeys,
             // Passing old painter so that the constructor can copy some values from it.
             old: oldPainter,
@@ -1700,6 +1750,8 @@ class _TabBarState extends State<CyclicTabBar>
             indicator: _getIndicator(indicatorSize),
             indicatorSize: indicatorSize,
             indicatorPadding: widget.indicatorPadding,
+            indicatorFixedWidth: widget.indicatorFixedWidth,
+            indicatorFixedWidthAlignment: widget.indicatorFixedWidthAlignment,
             tabKeys: _stretchPreviewTabKeys,
             old: oldPainter,
             labelPaddings: _stretchPreviewLabelPaddings,
@@ -1772,6 +1824,9 @@ class _TabBarState extends State<CyclicTabBar>
         widget.indicatorWeight != oldWidget.indicatorWeight ||
         widget.indicatorSize != oldWidget.indicatorSize ||
         widget.indicatorPadding != oldWidget.indicatorPadding ||
+        widget.indicatorFixedWidth != oldWidget.indicatorFixedWidth ||
+        widget.indicatorFixedWidthAlignment !=
+            oldWidget.indicatorFixedWidthAlignment ||
         widget.indicator != oldWidget.indicator ||
         widget.dividerColor != oldWidget.dividerColor ||
         widget.dividerHeight != oldWidget.dividerHeight ||

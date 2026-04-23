@@ -52,3 +52,30 @@ The vendored implementation is synced from Flutter `3.41.7`
 renamed to `CyclicTabBar` and `CyclicTabBarView`.
 
 The repository also includes a runnable example app in `example/`.
+
+## Fixed Indicator Width
+
+Use `indicatorFixedWidth` when the selected indicator should have a stable
+width that is independent from the tab width:
+
+```dart
+CyclicTabBar(
+  isScrollable: true,
+  indicatorSize: TabBarIndicatorSize.tab,
+  indicatorFixedWidth: 64,
+  indicatorFixedWidthAlignment: Alignment.center,
+  indicator: const UnderlineTabIndicator(),
+  tabs: const [
+    Tab(text: 'Overview'),
+    Tab(text: 'Metrics'),
+    Tab(text: 'Alerts'),
+  ],
+)
+```
+
+The fixed width is clamped to the available tab or label bounds after
+`indicatorPadding` is applied, so narrow tabs keep the indicator inside their
+available space. The same sizing logic also applies to custom `indicator`
+decorations. Set `indicatorSize` to `TabBarIndicatorSize.tab` or
+`TabBarIndicatorSize.label` depending on which bounds the fixed width should
+use.

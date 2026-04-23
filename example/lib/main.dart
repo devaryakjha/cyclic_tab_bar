@@ -83,6 +83,8 @@ class ExampleHomePage extends StatelessWidget {
                   tabs: _tabs,
                   isScrollable: true,
                   tabAlignment: TabAlignment.start,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicatorFixedWidth: 64,
                 ),
                 const SizedBox(height: 24),
                 Expanded(

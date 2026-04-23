@@ -3,7 +3,7 @@ description: "A source-synced Flutter TabBar/TabBarView baseline for a cyclic ta
 version: 0.0.1
 
 environment:
-  sdk: ^3.10.0
+  sdk: ^3.11.0
   flutter: ">=3.41.0"
 
 dependencies:

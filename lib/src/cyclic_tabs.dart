@@ -1374,9 +1374,14 @@ class _RenderedTabEntry {
 
 class _TabBarState extends State<CyclicTabBar>
     with SingleTickerProviderStateMixin {
-  static const double _kCyclicCommitThreshold = 72.0;
+  static const double _kCyclicCommitThreshold = 84.0;
+  static const double _kCyclicPointerCommitThreshold = 108.0;
   static const double _kCyclicMaxStretch = 128.0;
   static const double _kCyclicNormalizationEpsilon = 0.5;
+  static const double _kCyclicPointerOverscrollFactor = 0.35;
+  static const double _kCyclicPointerOverscrollContributionCap = 18.0;
+  static const double _kCyclicDragStretchExponent = 1.2;
+  static const double _kCyclicPointerStretchExponent = 1.9;
 
   ScrollController? _scrollController;
   TabController? _controller;
@@ -2079,6 +2084,21 @@ class _TabBarState extends State<CyclicTabBar>
     return 0.0;
   }
 
+  double _applyStretchResistance(
+    double extent, {
+    required bool isPointerDriven,
+  }) {
+    final double clampedExtent = clampDouble(extent, 0.0, _kCyclicMaxStretch);
+    if (clampedExtent == 0.0) {
+      return 0.0;
+    }
+    final double progress = clampedExtent / _kCyclicMaxStretch;
+    final double exponent = isPointerDriven
+        ? _kCyclicPointerStretchExponent
+        : _kCyclicDragStretchExponent;
+    return _kCyclicMaxStretch * math.pow(progress, exponent);
+  }
+
   _CyclicStretchDirection? _directionForMetrics(
     ScrollMetrics metrics, {
     double? overscroll,
@@ -2126,17 +2146,24 @@ class _TabBarState extends State<CyclicTabBar>
     }
 
     if (notification is ScrollUpdateNotification) {
+      final bool isPointerDrivenUpdate = notification.dragDetails == null;
       final _CyclicStretchDirection? direction = _directionForMetrics(
         notification.metrics,
       );
-      final double extent = clampDouble(
+      final double previousStretchExtent = _stretchDirection == direction
+          ? _stretchExtent
+          : 0.0;
+      final double extent = _applyStretchResistance(
         _outOfRangeExtent(notification.metrics),
-        0.0,
-        _kCyclicMaxStretch,
+        isPointerDriven: isPointerDrivenUpdate,
       );
       if (direction != null && extent > 0.0) {
         _setStretchPreview(direction, extent);
-        if (extent >= _kCyclicCommitThreshold) {
+        final bool canCommit = isPointerDrivenUpdate
+            ? previousStretchExtent > 0.0 &&
+                  extent >= _kCyclicPointerCommitThreshold
+            : extent >= _kCyclicCommitThreshold;
+        if (canCommit) {
           _commitCyclicExtension(direction);
         }
         return false;
@@ -2156,14 +2183,31 @@ class _TabBarState extends State<CyclicTabBar>
         return false;
       }
 
+      final bool isPointerDrivenOverscroll = notification.dragDetails == null;
+      final double previousStretchExtent = _stretchDirection == direction
+          ? _stretchExtent
+          : 0.0;
+      final double overscrollContribution = isPointerDrivenOverscroll
+          ? clampDouble(
+              notification.overscroll.abs() * _kCyclicPointerOverscrollFactor,
+              0.0,
+              _kCyclicPointerOverscrollContributionCap,
+            )
+          : notification.overscroll.abs();
       double stretchExtent = math.max(
-        _outOfRangeExtent(notification.metrics),
-        (_stretchDirection == direction ? _stretchExtent : 0.0) +
-            notification.overscroll.abs(),
+        _applyStretchResistance(
+          _outOfRangeExtent(notification.metrics),
+          isPointerDriven: isPointerDrivenOverscroll,
+        ),
+        previousStretchExtent + overscrollContribution,
       );
       stretchExtent = clampDouble(stretchExtent, 0.0, _kCyclicMaxStretch);
       _setStretchPreview(direction, stretchExtent);
-      if (stretchExtent >= _kCyclicCommitThreshold) {
+      final bool canCommit = isPointerDrivenOverscroll
+          ? previousStretchExtent > 0.0 &&
+                stretchExtent >= _kCyclicPointerCommitThreshold
+          : stretchExtent >= _kCyclicCommitThreshold;
+      if (canCommit) {
         _commitCyclicExtension(direction);
       }
       return false;

@@ -14,8 +14,6 @@ import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
-import 'package:vibration/vibration.dart';
 
 const double _kTabHeight = 46.0;
 const double _kTextAndIconTabHeight = 72.0;
@@ -1543,7 +1541,7 @@ class _TabBarState extends State<CyclicTabBar>
     // with a better long-term solution.
     // https://github.com/flutter/flutter/pull/68171#pullrequestreview-517753917
     if (widget.automaticIndicatorColorAdjustment &&
-        color.value == Material.maybeOf(context)?.color?.value) {
+        color.toARGB32() == Material.maybeOf(context)?.color?.toARGB32()) {
       color = Colors.white;
     }
 
@@ -1908,7 +1906,7 @@ class _TabBarState extends State<CyclicTabBar>
       final ScrollPosition position = _scrollController!.position;
       final double targetPixels = switch (direction) {
         _CyclicStretchDirection.leading =>
-          _singleCycleTabStripWidth - stretchExtent,
+          currentPixels + _singleCycleTabStripWidth - stretchExtent,
         _CyclicStretchDirection.trailing => currentPixels + stretchExtent,
       };
       _scrollController!.jumpTo(
@@ -3132,8 +3130,6 @@ class _TabsDefaultsM2 extends TabBarThemeData {
   @override
   TabAlignment? get tabAlignment =>
       isScrollable ? TabAlignment.start : TabAlignment.fill;
-
-  static const EdgeInsetsGeometry iconMargin = EdgeInsets.only(bottom: 10);
 }
 
 // BEGIN GENERATED TOKEN PROPERTIES - Tabs
@@ -3181,24 +3177,24 @@ class _TabsPrimaryDefaultsM3 extends TabBarThemeData {
     return WidgetStateProperty.resolveWith((Set<WidgetState> states) {
       if (states.contains(WidgetState.selected)) {
         if (states.contains(WidgetState.pressed)) {
-          return _colors.primary.withOpacity(0.1);
+          return _colors.primary.withValues(alpha: 0.1);
         }
         if (states.contains(WidgetState.hovered)) {
-          return _colors.primary.withOpacity(0.08);
+          return _colors.primary.withValues(alpha: 0.08);
         }
         if (states.contains(WidgetState.focused)) {
-          return _colors.primary.withOpacity(0.1);
+          return _colors.primary.withValues(alpha: 0.1);
         }
         return null;
       }
       if (states.contains(WidgetState.pressed)) {
-        return _colors.primary.withOpacity(0.1);
+        return _colors.primary.withValues(alpha: 0.1);
       }
       if (states.contains(WidgetState.hovered)) {
-        return _colors.onSurface.withOpacity(0.08);
+        return _colors.onSurface.withValues(alpha: 0.08);
       }
       if (states.contains(WidgetState.focused)) {
-        return _colors.onSurface.withOpacity(0.1);
+        return _colors.onSurface.withValues(alpha: 0.1);
       }
       return null;
     });
@@ -3217,10 +3213,6 @@ class _TabsPrimaryDefaultsM3 extends TabBarThemeData {
     };
   }
 
-  // TODO(davidmartos96): This value doesn't currently exist in
-  // https://m3.material.io/components/tabs/specs
-  // Update this when the token is available.
-  static const EdgeInsetsGeometry iconMargin = EdgeInsets.only(bottom: 2);
 }
 
 class _TabsSecondaryDefaultsM3 extends TabBarThemeData {
@@ -3260,24 +3252,24 @@ class _TabsSecondaryDefaultsM3 extends TabBarThemeData {
     return WidgetStateProperty.resolveWith((Set<WidgetState> states) {
       if (states.contains(WidgetState.selected)) {
         if (states.contains(WidgetState.pressed)) {
-          return _colors.onSurface.withOpacity(0.1);
+          return _colors.onSurface.withValues(alpha: 0.1);
         }
         if (states.contains(WidgetState.hovered)) {
-          return _colors.onSurface.withOpacity(0.08);
+          return _colors.onSurface.withValues(alpha: 0.08);
         }
         if (states.contains(WidgetState.focused)) {
-          return _colors.onSurface.withOpacity(0.1);
+          return _colors.onSurface.withValues(alpha: 0.1);
         }
         return null;
       }
       if (states.contains(WidgetState.pressed)) {
-        return _colors.onSurface.withOpacity(0.1);
+        return _colors.onSurface.withValues(alpha: 0.1);
       }
       if (states.contains(WidgetState.hovered)) {
-        return _colors.onSurface.withOpacity(0.08);
+        return _colors.onSurface.withValues(alpha: 0.08);
       }
       if (states.contains(WidgetState.focused)) {
-        return _colors.onSurface.withOpacity(0.1);
+        return _colors.onSurface.withValues(alpha: 0.1);
       }
       return null;
     });

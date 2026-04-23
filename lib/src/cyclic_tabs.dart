@@ -720,13 +720,19 @@ class _TabBarScrollPosition extends ScrollPositionWithSingleContext {
     if (!_viewportDimensionWasNonZero) {
       _viewportDimensionWasNonZero = viewportDimension != 0.0;
     }
+    final double? pendingPixelsCorrection = tabBar
+        ._consumePendingPixelsCorrection(minScrollExtent, maxScrollExtent);
     // If the viewport never had a non-zero dimension, we just want to jump
     // to the initial scroll position to avoid strange scrolling effects in
     // release mode: the viewport temporarily may have a dimension of zero
     // before the actual dimension is calculated. In that scenario, setting
     // the actual dimension would cause a strange scroll effect without this
     // guard because the super call below would start a ballistic scroll activity.
-    if (!_viewportDimensionWasNonZero || _needsPixelsCorrection) {
+    if (pendingPixelsCorrection != null) {
+      _needsPixelsCorrection = false;
+      correctPixels(pendingPixelsCorrection);
+      result = false;
+    } else if (!_viewportDimensionWasNonZero || _needsPixelsCorrection) {
       _needsPixelsCorrection = false;
       correctPixels(
         tabBar._initialScrollOffset(
@@ -1389,6 +1395,7 @@ class _TabBarState extends State<CyclicTabBar>
   int _activeRenderCycleIndexValue = 0;
   bool _extensionCommitPending = false;
   bool _normalizationPending = false;
+  double? _pendingPixelsCorrection;
   ValueNotifier<bool>? _scrollingNotifier;
   bool _debugHasScheduledValidTabsCountCheck = false;
 
@@ -1739,6 +1746,7 @@ class _TabBarState extends State<CyclicTabBar>
       _stripMode = _CyclicTabStripMode.normal;
       _activeRenderCycleIndexValue = 0;
       _extensionCommitPending = false;
+      _pendingPixelsCorrection = null;
       _singleCycleTabStripWidth = 0.0;
       _syncRenderedTabArtifacts();
       _syncStretchPreviewArtifacts();
@@ -1808,6 +1816,33 @@ class _TabBarState extends State<CyclicTabBar>
     _detachScrollingNotifier();
     _scrollingNotifier = notifier;
     notifier.addListener(_handleScrollActivityChanged);
+  }
+
+  void _schedulePixelsCorrection(double pixels) {
+    _pendingPixelsCorrection = pixels;
+    final ScrollPosition? position =
+        _scrollController != null && _scrollController!.hasClients
+        ? _scrollController!.position
+        : null;
+    if (position is _TabBarScrollPosition) {
+      position.markNeedsPixelsCorrection();
+    }
+  }
+
+  double? _consumePendingPixelsCorrection(
+    double minScrollExtent,
+    double maxScrollExtent,
+  ) {
+    final double? pendingPixelsCorrection = _pendingPixelsCorrection;
+    if (pendingPixelsCorrection == null) {
+      return null;
+    }
+    _pendingPixelsCorrection = null;
+    return clampDouble(
+      pendingPixelsCorrection,
+      minScrollExtent,
+      maxScrollExtent,
+    );
   }
 
   EdgeInsetsGeometry _effectiveLabelPaddingForTab(
@@ -1886,10 +1921,16 @@ class _TabBarState extends State<CyclicTabBar>
       0.0,
       _singleCycleTabStripWidth,
     );
+    final double targetPixels = switch (direction) {
+      _CyclicStretchDirection.leading =>
+        currentPixels + _singleCycleTabStripWidth - stretchExtent,
+      _CyclicStretchDirection.trailing => currentPixels + stretchExtent,
+    };
     _stretchController.stop();
     _stretchController.value = 0.0;
     _stretchDirection = null;
     _extensionCommitPending = true;
+    _schedulePixelsCorrection(targetPixels);
 
     _updateStripMode(switch (direction) {
       _CyclicStretchDirection.leading => _CyclicTabStripMode.extendedLeading,
@@ -1904,18 +1945,15 @@ class _TabBarState extends State<CyclicTabBar>
         return;
       }
       final ScrollPosition position = _scrollController!.position;
-      final double targetPixels = switch (direction) {
-        _CyclicStretchDirection.leading =>
-          currentPixels + _singleCycleTabStripWidth - stretchExtent,
-        _CyclicStretchDirection.trailing => currentPixels + stretchExtent,
-      };
-      _scrollController!.jumpTo(
-        clampDouble(
-          targetPixels,
-          position.minScrollExtent,
-          position.maxScrollExtent,
-        ),
+      final double correctedTarget = clampDouble(
+        targetPixels,
+        position.minScrollExtent,
+        position.maxScrollExtent,
       );
+      if ((position.pixels - correctedTarget).abs() >
+          _kCyclicNormalizationEpsilon) {
+        _scrollController!.jumpTo(correctedTarget);
+      }
       _extensionCommitPending = false;
       _normalizeCyclicExtensionIfSettled();
       HapticFeedback.heavyImpact();
@@ -1994,21 +2032,21 @@ class _TabBarState extends State<CyclicTabBar>
       }
       final double targetPixels = normalizedPixels!;
       final ScrollPosition extendedPosition = _scrollController!.position;
-      final double extendedTarget = clampDouble(
-        targetPixels,
-        extendedPosition.minScrollExtent,
-        extendedPosition.maxScrollExtent,
-      );
-      if ((extendedPosition.pixels - extendedTarget).abs() >
-          _kCyclicNormalizationEpsilon) {
-        _scrollController!.jumpTo(extendedTarget);
-      }
-
       if (!collapseToNormal) {
+        final double extendedTarget = clampDouble(
+          targetPixels,
+          extendedPosition.minScrollExtent,
+          extendedPosition.maxScrollExtent,
+        );
+        if ((extendedPosition.pixels - extendedTarget).abs() >
+            _kCyclicNormalizationEpsilon) {
+          _scrollController!.jumpTo(extendedTarget);
+        }
         _normalizationPending = false;
         return;
       }
 
+      _schedulePixelsCorrection(targetPixels);
       _updateStripMode(_CyclicTabStripMode.normal);
       WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
         _normalizationPending = false;

@@ -1422,8 +1422,8 @@ class _RenderedTabEntry {
 
 class _TabBarState extends State<CyclicTabBar>
     with SingleTickerProviderStateMixin {
-  static const double _kCyclicCommitThreshold = 84.0;
-  static const double _kCyclicPointerCommitThreshold = 108.0;
+  static const double _kCyclicCommitThreshold = 64.0;
+  static const double _kCyclicPointerCommitThreshold = 84.0;
   static const double _kCyclicMaxStretch = 128.0;
   static const double _kCyclicNormalizationEpsilon = 0.5;
   static const double _kCyclicPointerOverscrollFactor = 0.35;

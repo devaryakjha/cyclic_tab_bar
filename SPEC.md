@@ -19,6 +19,8 @@ framework widgets.
   `indicatorPadding` is applied so narrow tabs do not overflow.
 - Apply the fixed-width indicator behavior to both the default underline
   indicator and custom `Decoration` indicators.
+- For scrollable tab bars, pulling past either edge extends the tab strip
+  cyclically without requiring a long stretch.
 - Update the example and tests to use the vendored widgets.
 
 ## Acceptance Criteria
@@ -33,3 +35,5 @@ framework widgets.
 - When `indicatorFixedWidth` is set, the painted indicator width is
   `min(indicatorFixedWidth, availableIndicatorWidth)` and the remaining space
   is distributed according to `indicatorFixedWidthAlignment`.
+- Pulling roughly half of the maximum cyclic stretch past either edge commits
+  the cyclic extension.

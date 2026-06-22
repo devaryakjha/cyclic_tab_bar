@@ -161,6 +161,51 @@ void main() {
       expect(record.lastRect!.left, closeTo(36.0, 0.01));
     },
   );
+
+  testWidgets('cyclic edge stretch commits with a shorter pull', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DefaultTabController(
+          length: 4,
+          child: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 240,
+                child: CyclicTabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  tabs: const [
+                    SizedBox(width: 100, child: Tab(text: 'One')),
+                    SizedBox(width: 100, child: Tab(text: 'Two')),
+                    SizedBox(width: 100, child: Tab(text: 'Three')),
+                    SizedBox(width: 100, child: Tab(text: 'Four')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Finder scrollable = find.byType(SingleChildScrollView);
+    await tester.drag(scrollable, const Offset(-500, 0));
+    await tester.pumpAndSettle();
+
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(scrollable),
+    );
+    await gesture.moveBy(const Offset(-70, 0));
+    await tester.pump();
+
+    expect(find.text('One'), findsNWidgets(2));
+
+    await gesture.up();
+  });
 }
 
 class _IndicatorPaintRecord {

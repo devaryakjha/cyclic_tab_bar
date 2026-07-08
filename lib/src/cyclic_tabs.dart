@@ -1803,12 +1803,19 @@ class _TabBarState extends State<CyclicTabBar>
       _stripMode = _CyclicTabStripMode.normal;
       _activeRenderCycleIndexValue = 0;
       _extensionCommitPending = false;
+      _normalizationPending = false;
       _pendingPixelsCorrection = null;
       _singleCycleTabStripWidth = 0.0;
       _syncRenderedTabArtifacts();
       _syncStretchPreviewArtifacts();
       _initIndicatorPainter();
       _initStretchPreviewIndicatorPainter();
+      if (_scrollController != null && _scrollController!.hasClients) {
+        final ScrollPosition position = _scrollController!.position;
+        if (position is _TabBarScrollPosition) {
+          position.markNeedsPixelsCorrection();
+        }
+      }
     }
 
     if (widget.controller != oldWidget.controller) {

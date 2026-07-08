@@ -302,6 +302,73 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('dynamic tab width growth keeps selected tab in view', (
+    tester,
+  ) async {
+    var expanded = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DefaultTabController(
+          initialIndex: 3,
+          length: 4,
+          child: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(
+                    width: 240,
+                    child: Column(
+                      children: [
+                        CyclicTabBar(
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          tabs: [
+                            SizedBox(
+                              width: expanded ? 100 : 60,
+                              child: Tab(text: expanded ? 'One 1' : 'One'),
+                            ),
+                            SizedBox(
+                              width: expanded ? 100 : 60,
+                              child: Tab(text: expanded ? 'Two 2' : 'Two'),
+                            ),
+                            SizedBox(
+                              width: expanded ? 100 : 60,
+                              child: Tab(text: expanded ? 'Three 3' : 'Three'),
+                            ),
+                            SizedBox(
+                              width: expanded ? 100 : 60,
+                              child: Tab(text: expanded ? 'Four 4' : 'Four'),
+                            ),
+                          ],
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              expanded = true;
+                            });
+                          },
+                          child: const Text('expand'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('expand'));
+    await tester.pumpAndSettle();
+
+    expect(tester.getCenter(find.text('Four 4')).dx, lessThanOrEqualTo(240.0));
+  });
 }
 
 class _IndicatorPaintRecord {

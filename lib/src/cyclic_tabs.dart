@@ -1807,6 +1807,8 @@ class _TabBarState extends State<CyclicTabBar>
       _singleCycleTabStripWidth = 0.0;
       _syncRenderedTabArtifacts();
       _syncStretchPreviewArtifacts();
+      _initIndicatorPainter();
+      _initStretchPreviewIndicatorPainter();
     }
 
     if (widget.controller != oldWidget.controller) {

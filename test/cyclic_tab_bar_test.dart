@@ -206,6 +206,102 @@ void main() {
 
     await gesture.up();
   });
+
+  testWidgets('dynamic tab labels reset stale cyclic indicator offsets', (
+    tester,
+  ) async {
+    var showCounts = false;
+
+    Widget buildTabs() {
+      return MaterialApp(
+        home: DefaultTabController(
+          initialIndex: 3,
+          length: 4,
+          child: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(
+                    width: 360,
+                    child: Column(
+                      children: [
+                        CyclicTabBar(
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          indicatorSize: TabBarIndicatorSize.label,
+                          tabs: [
+                            SizedBox(
+                              width: showCounts ? 72 : 44,
+                              child: Tab(text: showCounts ? 'IPO 2' : 'IPO'),
+                            ),
+                            SizedBox(
+                              width: showCounts ? 152 : 120,
+                              child: Tab(
+                                text: showCounts
+                                    ? 'Govt. securities 2'
+                                    : 'Govt. securities',
+                              ),
+                            ),
+                            SizedBox(
+                              width: showCounts ? 112 : 80,
+                              child: Tab(
+                                text: showCounts ? 'Auctions 2' : 'Auctions',
+                              ),
+                            ),
+                            SizedBox(
+                              width: showCounts ? 172 : 140,
+                              child: Tab(
+                                text: showCounts
+                                    ? 'Corporate Actions 5'
+                                    : 'Corporate Actions',
+                              ),
+                            ),
+                          ],
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              showCounts = true;
+                            });
+                          },
+                          child: const Text('load counts'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildTabs());
+    await tester.pumpAndSettle();
+
+    final Finder scrollable = find.byType(SingleChildScrollView);
+    await tester.drag(scrollable, const Offset(-500, 0));
+    await tester.pumpAndSettle();
+
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(scrollable),
+    );
+    await gesture.moveBy(const Offset(-300, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+
+    expect(find.text('IPO'), findsNWidgets(2));
+
+    await tester.tap(find.text('load counts'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Auctions 2'));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _IndicatorPaintRecord {

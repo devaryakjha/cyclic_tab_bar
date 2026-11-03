@@ -5,12 +5,25 @@ void main() {
   testWidgets('example switches content when a tab is tapped', (tester) async {
     await tester.pumpWidget(const ExampleApp());
 
-    expect(find.text('Baseline source copy of Flutter tabs.'), findsOneWidget);
-    expect(find.text('Interaction currently matches Flutter exactly.'), findsNothing);
+    expect(
+      find.text('Source-synced Flutter tabs with package-owned edge cycling.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Pull either edge of the scrollable tab strip to reveal the next cycle.',
+      ),
+      findsNothing,
+    );
 
     await tester.tap(find.text('Metrics'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Interaction currently matches Flutter exactly.'), findsOneWidget);
+    expect(
+      find.text(
+        'Pull either edge of the scrollable tab strip to reveal the next cycle.',
+      ),
+      findsOneWidget,
+    );
   });
 }

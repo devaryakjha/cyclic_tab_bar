@@ -10,7 +10,8 @@ import 'dart:math' as math;
 import 'dart:ui' show SemanticsRole, lerpDouble;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/gestures.dart'
+    show Drag, DragStartBehavior, PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -414,10 +415,31 @@ class _IndicatorPainter extends CustomPainter {
         2.0;
   }
 
+  // The rect of the tab one past either end of the rendered strip: the
+  // first or last tab shifted by the strip's width, as if the strip repeated.
+  // A looping tab view drives the controller's value past the ends, and
+  // sliding the indicator off the strip toward that phantom tab reads as the
+  // wrap even when the strip itself has not been extended.
+  Rect _phantomIndicatorRect(Size tabBarSize, int tabIndex) {
+    assert(tabIndex == -1 || tabIndex == maxTabIndex + 1);
+    final double stripWidth =
+        (_currentTabOffsets!.last - _currentTabOffsets!.first).abs();
+    final bool pastEnd = tabIndex > maxTabIndex;
+    final Rect rect = indicatorRect(tabBarSize, pastEnd ? 0 : maxTabIndex);
+    final double shift = switch (_currentTextDirection!) {
+      TextDirection.ltr => pastEnd ? stripWidth : -stripWidth,
+      TextDirection.rtl => pastEnd ? -stripWidth : stripWidth,
+    };
+    return rect.shift(Offset(shift, 0.0));
+  }
+
   Rect indicatorRect(Size tabBarSize, int tabIndex) {
     assert(_currentTabOffsets != null);
     assert(_currentTextDirection != null);
     assert(_currentTabOffsets!.isNotEmpty);
+    if (tabIndex == -1 || tabIndex == maxTabIndex + 1) {
+      return _phantomIndicatorRect(tabBarSize, tabIndex);
+    }
     assert(tabIndex >= 0);
     assert(tabIndex <= maxTabIndex);
     double tabLeft, tabRight;
@@ -542,8 +564,13 @@ class _IndicatorPainter extends CustomPainter {
   }) {
     final double index = controller.index.toDouble() + indexOffset;
     final bool ltr = index > value;
-    final int from = (ltr ? value.floor() : value.ceil()).clamp(0, maxTabIndex);
-    final int to = (ltr ? from + 1 : from - 1).clamp(0, maxTabIndex);
+    // One phantom tab past either end so a looping page wrap slides the
+    // indicator off the strip instead of back toward the wrong neighbour.
+    final int from = (ltr ? value.floor() : value.ceil()).clamp(
+      -1,
+      maxTabIndex + 1,
+    );
+    final int to = (ltr ? from + 1 : from - 1).clamp(-1, maxTabIndex + 1);
     final Rect fromRect = indicatorRect(size, from);
     final Rect toRect = indicatorRect(size, to);
     return Rect.lerp(fromRect, toRect, (value - from).abs());
@@ -572,13 +599,13 @@ class _IndicatorPainter extends CustomPainter {
         ? switch (textDirection) {
             TextDirection.ltr => value.ceil(),
             TextDirection.rtl => value.floor(),
-          }.clamp(0, maxTabIndex)
+          }.clamp(-1, maxTabIndex + 1)
         : controller.index + indexOffset;
     final int from = progressLeft == 0.0 || !controller.indexIsChanging
         ? switch (textDirection) {
             TextDirection.ltr => (to - 1),
             TextDirection.rtl => (to + 1),
-          }.clamp(0, maxTabIndex)
+          }.clamp(-1, maxTabIndex + 1)
         : controller.previousIndex + indexOffset;
     final Rect toRect = indicatorRect(size, to);
     final Rect fromRect = indicatorRect(size, from);
@@ -713,13 +740,18 @@ class _DragAnimation extends Animation<double>
   @override
   double get value {
     assert(!controller.indexIsChanging);
-    final double controllerMaxValue = (controller.length - 1).toDouble();
-    final double controllerValue = clampDouble(
-      controller.animation!.value,
-      0.0,
-      controllerMaxValue,
+    final double controllerValue = controller.animation!.value;
+    final double length = controller.length.toDouble();
+    // Distance to this tab, also measured across the wrap, so that while a
+    // looping tab view carries the value past the last tab the first tab
+    // fades in. Within the normal range the wrapped distances are at least a
+    // whole tab, so the result is unchanged there.
+    final double distance = (controllerValue - index.toDouble()).abs();
+    final double wrappedDistance = math.min(
+      (controllerValue - index.toDouble() - length).abs(),
+      (controllerValue - index.toDouble() + length).abs(),
     );
-    return clampDouble((controllerValue - index.toDouble()).abs(), 0.0, 1.0);
+    return clampDouble(math.min(distance, wrappedDistance), 0.0, 1.0);
   }
 }
 
@@ -742,6 +774,66 @@ class _TabBarScrollPosition extends ScrollPositionWithSingleContext {
   // The scroll position should be adjusted at least once.
   bool _needsPixelsCorrection = true;
 
+  // How far the activity in progress has moved pixels since the tab bar
+  // scheduled a pixels correction, so the correction can carry that motion
+  // over instead of snapping back by the frames in between. Only activity
+  // driven motion goes through setPixels; the viewport's own clamping during
+  // layout does not and must not count.
+  double _driftSinceCorrection = 0.0;
+
+  // Mirrors the private activity so a drag can be told apart from a fling or
+  // a driven animation without touching test-only API.
+  ScrollActivity? _trackedActivity;
+
+  bool get isDriven => _trackedActivity is DrivenScrollActivity;
+
+  @override
+  void beginActivity(ScrollActivity? newActivity) {
+    if (newActivity != null) {
+      _trackedActivity = newActivity;
+    }
+    super.beginActivity(newActivity);
+  }
+
+  // The drag controller of the drag in progress, to tell a finger lift
+  // (lastDetails is a DragEndDetails) from a cancelled drag.
+  ScrollDragController? _dragController;
+
+  @override
+  Drag drag(DragStartDetails details, VoidCallback dragCancelCallback) {
+    final Drag drag = super.drag(details, dragCancelCallback);
+    _dragController = drag is ScrollDragController ? drag : null;
+    return drag;
+  }
+
+  // A drag ends by going ballistic with the finger's release velocity; that
+  // velocity decides whether a stretch was a deliberate pull or a flick. A
+  // cancelled drag (another recognizer won the arena) goes ballistic too,
+  // with zero velocity, but is no release at all.
+  @override
+  void goBallistic(double velocity) {
+    final bool releasedDrag =
+        _trackedActivity is DragScrollActivity &&
+        _dragController?.lastDetails is DragEndDetails;
+    super.goBallistic(velocity);
+    if (releasedDrag) {
+      tabBar._handleDragReleased(velocity);
+    }
+  }
+
+  @override
+  double setPixels(double newPixels) {
+    final double before = hasPixels ? pixels : newPixels;
+    final double result = super.setPixels(newPixels);
+    _driftSinceCorrection += pixels - before;
+    return result;
+  }
+
+  void markNeedsPixelsCorrection() {
+    _needsPixelsCorrection = true;
+    _driftSinceCorrection = 0.0;
+  }
+
   @override
   bool applyContentDimensions(double minScrollExtent, double maxScrollExtent) {
     var result = true;
@@ -749,7 +841,12 @@ class _TabBarScrollPosition extends ScrollPositionWithSingleContext {
       _viewportDimensionWasNonZero = viewportDimension != 0.0;
     }
     final double? pendingPixelsCorrection = tabBar
-        ._consumePendingPixelsCorrection(minScrollExtent, maxScrollExtent);
+        ._consumePendingPixelsCorrection(
+          _driftSinceCorrection,
+          minScrollExtent,
+          maxScrollExtent,
+        );
+    _driftSinceCorrection = 0.0;
     // If the viewport never had a non-zero dimension, we just want to jump
     // to the initial scroll position to avoid strange scrolling effects in
     // release mode: the viewport temporarily may have a dimension of zero
@@ -773,10 +870,6 @@ class _TabBarScrollPosition extends ScrollPositionWithSingleContext {
     }
     return super.applyContentDimensions(minScrollExtent, maxScrollExtent) &&
         result;
-  }
-
-  void markNeedsPixelsCorrection() {
-    _needsPixelsCorrection = true;
   }
 }
 
@@ -1408,6 +1501,13 @@ class CyclicTabBar extends StatefulWidget implements PreferredSizeWidget {
 
 enum _CyclicStretchDirection { leading, trailing }
 
+// `normal` is the plain Flutter strip with hard edges. The extended modes
+// render two copies of the tabs for the duration of one wrap: the original
+// cycle first and the next one after it (`extendedTrailing`), or the previous
+// cycle first and the original after it (`extendedLeading`). They last only
+// until the scroll settles; then the strip rests inside one copy and collapses
+// back to `normal`, edges included, so the next wrap needs another deliberate
+// pull.
 enum _CyclicTabStripMode { normal, extendedLeading, extendedTrailing }
 
 class _RenderedTabEntry {
@@ -1430,13 +1530,19 @@ class _TabBarState extends State<CyclicTabBar>
   static const double _kCyclicPointerOverscrollContributionCap = 18.0;
   static const double _kCyclicDragStretchExponent = 1.2;
   static const double _kCyclicPointerStretchExponent = 1.9;
+  // A stretch past the threshold only commits while the finger is moving no
+  // faster than this, or is released no faster than this: a flick into the
+  // edge is not a deliberate pull and must spring back.
+  static const double _kCyclicCommitMaxVelocity = 500.0;
+  // Copies of the tab cycle rendered while extended.
+  static const int _kCyclicRenderedCycles = 2;
 
   ScrollController? _scrollController;
   TabController? _controller;
   _IndicatorPainter? _indicatorPainter;
   _IndicatorPainter? _stretchPreviewIndicatorPainter;
   int? _currentIndex;
-  late double _tabStripWidth;
+  double _tabStripWidth = 0.0;
   double _singleCycleTabStripWidth = 0.0;
   late List<GlobalKey> _tabKeys;
   late List<GlobalKey> _stretchPreviewTabKeys;
@@ -1445,9 +1551,32 @@ class _TabBarState extends State<CyclicTabBar>
   late final AnimationController _stretchController;
   _CyclicStretchDirection? _stretchDirection;
   _CyclicTabStripMode _stripMode = _CyclicTabStripMode.normal;
-  int _activeRenderCycleIndexValue = 0;
   bool _extensionCommitPending = false;
   bool _normalizationPending = false;
+  // Whether the scroll in progress was started by a trackpad, whose
+  // overscroll may commit through the pointer thresholds. Fling frames after
+  // a touch drag carry no drag details either, but never commit.
+  bool _scrollStartedByTrackpad = false;
+  // The selected index when a pull committed the current wrap, or null when
+  // the wrap was driven by a looping page view. While the selection has not
+  // changed since, letting go rests on the tabs the user pulled in.
+  int? _wrapSelectedIndexAtCommit;
+  // Time stamp of the previous drag frame, to measure the finger's speed.
+  Duration? _lastDragTimeStamp;
+  // The stretch and the viewport's overscroll at the moment the finger left
+  // under bouncing physics, so the bounce-back frames can scale the stretch
+  // down with the overscroll instead of switching curves.
+  double _releaseStretchExtent = 0.0;
+  double _releaseOverscroll = 0.0;
+  // After a pull-wrap comes to rest on the pulled-in tabs, where the normal
+  // strip should ease to once collapsed: its start (0) or its end, so the
+  // tabs sit where they do when the screen opens, padding included.
+  double? _restAtStripEdge;
+  // Effective strip padding, resolved once per build (see
+  // _effectiveScrollPadding).
+  EdgeInsetsGeometry? _effectiveScrollPaddingValue;
+  // Pixels to jump to at the next layout, plus whatever the user scrolls in
+  // the meantime (see _TabBarScrollPosition._driftSinceCorrection).
   double? _pendingPixelsCorrection;
   ValueNotifier<bool>? _scrollingNotifier;
   bool _debugHasScheduledValidTabsCountCheck = false;
@@ -1471,31 +1600,74 @@ class _TabBarState extends State<CyclicTabBar>
     _syncStretchPreviewArtifacts();
   }
 
+  int get _renderedCycleCount => switch (_stripMode) {
+    _CyclicTabStripMode.normal => 1,
+    _CyclicTabStripMode.extendedLeading ||
+    _CyclicTabStripMode.extendedTrailing => _kCyclicRenderedCycles,
+  };
+
   List<_RenderedTabEntry> get _renderedTabEntries {
     final int tabCount = widget.tabs.length;
-    return switch (_stripMode) {
-      _CyclicTabStripMode.normal => List<_RenderedTabEntry>.generate(
-        tabCount,
-        (int index) =>
-            _RenderedTabEntry(sourceIndex: index, renderCycleIndex: 0),
-        growable: false,
+    return List<_RenderedTabEntry>.generate(
+      tabCount * _renderedCycleCount,
+      (int index) => _RenderedTabEntry(
+        sourceIndex: index % tabCount,
+        renderCycleIndex: index ~/ tabCount,
       ),
-      _CyclicTabStripMode.extendedLeading ||
-      _CyclicTabStripMode.extendedTrailing => List<_RenderedTabEntry>.generate(
-        tabCount * 2,
-        (int index) => _RenderedTabEntry(
-          sourceIndex: index % tabCount,
-          renderCycleIndex: index ~/ tabCount,
-        ),
-        growable: false,
-      ),
-    };
+      growable: false,
+    );
   }
 
-  int get _activeRenderCycleIndex => _activeRenderCycleIndexValue;
+  // The copy that holds the tabs the controller index refers to; the other
+  // copy is the one being wrapped to.
+  int get _activeRenderCycleIndex => switch (_stripMode) {
+    _CyclicTabStripMode.normal || _CyclicTabStripMode.extendedTrailing => 0,
+    _CyclicTabStripMode.extendedLeading => 1,
+  };
 
-  int get _selectedRenderIndex =>
-      _currentIndex! + (_activeRenderCycleIndex * widget.tabs.length);
+  // Whether the painter's saved tab offsets describe the strip as it is
+  // currently rendered. They lag one layout behind a strip mode change, during
+  // which scroll targets computed from them would be off by whole cycles.
+  bool get _tabOffsetsMatchRenderedTabs {
+    final List<double>? offsets = _indicatorPainter?._currentTabOffsets;
+    return offsets != null &&
+        offsets.length == widget.tabs.length * _renderedCycleCount + 1;
+  }
+
+  // The rendered copy of [sourceIndex] a scroll should go to. While extended
+  // this is the copy nearest to the viewport, so following a page swipe or a
+  // tap never drags the strip a whole cycle across the seam.
+  int _renderIndexFor(int sourceIndex) {
+    final int tabCount = widget.tabs.length;
+    final int middle = sourceIndex + _activeRenderCycleIndex * tabCount;
+    if (_stripMode == _CyclicTabStripMode.normal ||
+        !_tabOffsetsMatchRenderedTabs ||
+        _scrollController == null ||
+        !_scrollController!.hasClients ||
+        !_scrollController!.position.hasPixels) {
+      return middle;
+    }
+    final ScrollPosition position = _scrollController!.position;
+    final TextDirection textDirection = Directionality.of(context);
+    final double viewportCenter =
+        position.pixels + position.viewportDimension / 2.0;
+    int nearest = middle;
+    double nearestDistance = double.infinity;
+    for (int cycle = 0; cycle < _renderedCycleCount; cycle += 1) {
+      final int renderIndex = sourceIndex + cycle * tabCount;
+      final double distance =
+          (_tabCenterScrollPosition(renderIndex, textDirection) -
+                  viewportCenter)
+              .abs();
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = renderIndex;
+      }
+    }
+    return nearest;
+  }
+
+  int get _selectedRenderIndex => _renderIndexFor(_currentIndex!);
 
   double get _stretchExtent => _stretchController.value;
 
@@ -1688,11 +1860,12 @@ class _TabBarState extends State<CyclicTabBar>
           TabBarIndicatorSize.label => TabIndicatorAnimation.elastic,
           TabBarIndicatorSize.tab => TabIndicatorAnimation.linear,
         };
-    final List<int> indicatorOffsets = switch (_stripMode) {
-      _CyclicTabStripMode.normal => const <int>[0],
-      _CyclicTabStripMode.extendedLeading ||
-      _CyclicTabStripMode.extendedTrailing => <int>[0, widget.tabs.length],
-    };
+    // One indicator per rendered copy of the cycle.
+    final List<int> indicatorOffsets = List<int>.generate(
+      _renderedCycleCount,
+      (int cycle) => cycle * widget.tabs.length,
+      growable: false,
+    );
 
     _indicatorPainter = !_controllerIsValid
         ? null
@@ -1776,14 +1949,13 @@ class _TabBarState extends State<CyclicTabBar>
     }
     setState(() {
       _stripMode = stripMode;
-      _activeRenderCycleIndexValue = switch (stripMode) {
-        _CyclicTabStripMode.normal => 0,
-        _CyclicTabStripMode.extendedLeading => 1,
-        _CyclicTabStripMode.extendedTrailing => 0,
-      };
       _syncRenderedTabArtifacts();
     });
     _initIndicatorPainter();
+    // The painter copied the previous layout's offsets, which describe a strip
+    // with a different number of copies; drop them so nothing scrolls by whole
+    // cycles before the next layout reports the real ones.
+    _indicatorPainter?.saveTabOffsets(null, null);
   }
 
   @override
@@ -1797,25 +1969,61 @@ class _TabBarState extends State<CyclicTabBar>
   @override
   void didUpdateWidget(CyclicTabBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!listEquals(widget.tabs, oldWidget.tabs)) {
+    // Only a change in the number of tabs invalidates the cyclic geometry.
+    // Apps commonly rebuild with a fresh but equivalent tabs list (counts in
+    // labels, prices ticking), and resetting on every such rebuild wiped an
+    // in-progress edge stretch or committed extension and yanked the strip
+    // back to the selected tab. Width-only changes are handled at layout time
+    // by _saveTabOffsets, which anchors the selected tab instead.
+    if (widget.tabs.length != oldWidget.tabs.length) {
+      final bool wasExtended = _stripMode != _CyclicTabStripMode.normal;
       _stretchController.value = 0.0;
       _stretchDirection = null;
+      final int wasActiveCycle = _activeRenderCycleIndex;
       _stripMode = _CyclicTabStripMode.normal;
-      _activeRenderCycleIndexValue = 0;
       _extensionCommitPending = false;
       _normalizationPending = false;
+      _restAtStripEdge = null;
       _pendingPixelsCorrection = null;
-      _singleCycleTabStripWidth = 0.0;
       _syncRenderedTabArtifacts();
       _syncStretchPreviewArtifacts();
       _initIndicatorPainter();
+      _indicatorPainter?.saveTabOffsets(null, null);
       _initStretchPreviewIndicatorPainter();
-      if (_scrollController != null && _scrollController!.hasClients) {
+      if (wasExtended &&
+          _scrollController != null &&
+          _scrollController!.hasClients &&
+          _scrollController!.position.hasPixels) {
+        // Collapse the extension in place onto the copy that held the
+        // original tabs.
         final ScrollPosition position = _scrollController!.position;
-        if (position is _TabBarScrollPosition) {
-          position.markNeedsPixelsCorrection();
+        _schedulePixelsCorrection(
+          position.pixels - _singleCycleTabStripWidth * wasActiveCycle,
+        );
+        if (position is _TabBarScrollPosition && position.isDriven) {
+          // A resting animation still heading for an extended-coordinate
+          // target would overshoot the collapsed strip; stop it where the
+          // collapse lands it.
+          WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
+            if (!mounted ||
+                _scrollController == null ||
+                !_scrollController!.hasClients) {
+              return;
+            }
+            final ScrollPosition current = _scrollController!.position;
+            if (current is _TabBarScrollPosition && current.isDriven) {
+              current.jumpTo(
+                clampDouble(
+                  current.pixels,
+                  current.minScrollExtent,
+                  current.maxScrollExtent,
+                ),
+              );
+            }
+          });
         }
       }
+      _singleCycleTabStripWidth = 0.0;
     }
 
     if (widget.controller != oldWidget.controller) {
@@ -1862,7 +2070,9 @@ class _TabBarState extends State<CyclicTabBar>
   }
 
   void _handleScrollActivityChanged() {
-    _normalizeCyclicExtensionIfSettled();
+    // Fires when a drag, fling or animation ends: the user's own idle
+    // transition, so the strip may ease onto its resting position.
+    _settleCyclicExtensionIfIdle(animate: true);
   }
 
   void _detachScrollingNotifier() {
@@ -1899,6 +2109,7 @@ class _TabBarState extends State<CyclicTabBar>
   }
 
   double? _consumePendingPixelsCorrection(
+    double drift,
     double minScrollExtent,
     double maxScrollExtent,
   ) {
@@ -1908,7 +2119,7 @@ class _TabBarState extends State<CyclicTabBar>
     }
     _pendingPixelsCorrection = null;
     return clampDouble(
-      pendingPixelsCorrection,
+      pendingPixelsCorrection + drift,
       minScrollExtent,
       maxScrollExtent,
     );
@@ -1976,7 +2187,37 @@ class _TabBarState extends State<CyclicTabBar>
         .whenCompleteOrCancel(clearDirectionIfNeeded);
   }
 
-  void _commitCyclicExtension(_CyclicStretchDirection direction) {
+  // Resolved padding around the tab strip, in scroll coordinates: the strip
+  // itself begins after the start inset. The cyclic seam math works in those
+  // coordinates.
+  (double start, double end) _resolvedScrollPadding(
+    TextDirection textDirection,
+  ) {
+    final EdgeInsetsGeometry? padding = _effectiveScrollPadding();
+    if (padding == null) {
+      return (0.0, 0.0);
+    }
+    final EdgeInsets resolved = padding.resolve(textDirection);
+    return switch (textDirection) {
+      TextDirection.ltr => (resolved.left, resolved.right),
+      TextDirection.rtl => (resolved.right, resolved.left),
+    };
+  }
+
+  double _paddingStart(TextDirection textDirection) =>
+      _resolvedScrollPadding(textDirection).$1;
+
+  // The padding the scroll view is built with, cached by build. Note that it
+  // includes the startOffset inset while the upstream _tabScrollOffset
+  // centering math only looks at widget.padding; the seam and resting math
+  // here must match the layout, so they use this one.
+  EdgeInsetsGeometry? _effectiveScrollPadding() => _effectiveScrollPaddingValue;
+
+  void _commitCyclicExtension(
+    _CyclicStretchDirection direction, {
+    required bool fromDrag,
+    bool released = false,
+  }) {
     if (_stripMode != _CyclicTabStripMode.normal ||
         _stretchExtent == 0.0 ||
         _singleCycleTabStripWidth == 0.0 ||
@@ -1985,65 +2226,71 @@ class _TabBarState extends State<CyclicTabBar>
       return;
     }
 
-    final double currentPixels = _scrollController!.position.pixels;
-    final double stretchExtent = _stretchExtent.clamp(
-      0.0,
-      _singleCycleTabStripWidth,
-    );
+    final ScrollPosition position = _scrollController!.position;
+    if (_singleCycleTabStripWidth <= position.viewportDimension) {
+      // A cycle that fits the viewport has nothing to wrap to; a wrap would
+      // only show the same tabs twice.
+      return;
+    }
+    final double currentPixels = position.pixels;
+    // The preview that the stretch translated in becomes real content, so the
+    // viewport moves by that translation (zero under bouncing physics, where
+    // the viewport's own overscroll already made room for the preview and is
+    // already part of currentPixels); when the previous cycle is laid out in
+    // front of the original one, the original also moves one cycle width.
+    // Either way the picture does not change.
+    final double translation = _stretchTranslationExtent(
+      position,
+    ).clamp(0.0, _singleCycleTabStripWidth);
     final double targetPixels = switch (direction) {
       _CyclicStretchDirection.leading =>
-        currentPixels + _singleCycleTabStripWidth - stretchExtent,
-      _CyclicStretchDirection.trailing => currentPixels + stretchExtent,
+        currentPixels + _singleCycleTabStripWidth - translation,
+      _CyclicStretchDirection.trailing => currentPixels + translation,
     };
     _stretchController.stop();
     _stretchController.value = 0.0;
     _stretchDirection = null;
-    _extensionCommitPending = true;
-    _schedulePixelsCorrection(targetPixels);
-
-    _updateStripMode(switch (direction) {
-      _CyclicStretchDirection.leading => _CyclicTabStripMode.extendedLeading,
-      _CyclicStretchDirection.trailing => _CyclicTabStripMode.extendedTrailing,
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
-      if (!mounted ||
-          _scrollController == null ||
-          !_scrollController!.hasClients) {
-        _extensionCommitPending = false;
-        return;
-      }
-      final ScrollPosition position = _scrollController!.position;
-      final double correctedTarget = clampDouble(
-        targetPixels,
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      );
-      if ((position.pixels - correctedTarget).abs() >
-          _kCyclicNormalizationEpsilon) {
-        _scrollController!.jumpTo(correctedTarget);
-      }
-      _extensionCommitPending = false;
-      _normalizeCyclicExtensionIfSettled();
-      HapticFeedback.heavyImpact();
-    });
+    _wrapSelectedIndexAtCommit = _currentIndex;
+    _enterExtendedMode(
+      switch (direction) {
+        _CyclicStretchDirection.leading => _CyclicTabStripMode.extendedLeading,
+        _CyclicStretchDirection.trailing =>
+          _CyclicTabStripMode.extendedTrailing,
+      },
+      targetPixels,
+      feedback: widget.enableFeedback ?? true,
+      // A fling that wrapped would otherwise keep its momentum and race on
+      // through the next cycle, and a release under bouncing physics would
+      // spring part of the way back; ease onto the resting position instead.
+      settleAtOnce: !fromDrag || released,
+    );
   }
 
-  void _normalizeCyclicExtensionIfSettled() {
-    if (_stripMode == _CyclicTabStripMode.normal ||
-        _extensionCommitPending ||
-        _normalizationPending ||
-        _scrollController == null ||
-        !_scrollController!.hasClients) {
-      return;
-    }
+  void _enterExtendedMode(
+    _CyclicTabStripMode stripMode,
+    double targetPixels, {
+    required bool feedback,
+    bool settleAtOnce = false,
+  }) {
+    _extensionCommitPending = true;
+    _restAtStripEdge = null;
+    _schedulePixelsCorrection(targetPixels);
+    _updateStripMode(stripMode);
 
-    final ScrollPosition position = _scrollController!.position;
-    if (position.isScrollingNotifier.value) {
-      return;
-    }
-
-    _maybeNormalizeCyclicExtension(collapseToNormal: true);
+    // The correction is applied by the layout that the mode change schedules.
+    // Nothing here may jump the position: that would end a drag that is still
+    // in progress.
+    WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
+      _extensionCommitPending = false;
+      if (!mounted) {
+        return;
+      }
+      if (feedback) {
+        HapticFeedback.heavyImpact();
+      }
+      // The user may already have let go.
+      _settleCyclicExtensionIfIdle(animate: true, interruptFling: settleAtOnce);
+    });
   }
 
   void _saveStretchPreviewTabOffsets(
@@ -2054,87 +2301,210 @@ class _TabBarState extends State<CyclicTabBar>
     _stretchPreviewIndicatorPainter?.saveTabOffsets(tabOffsets, textDirection);
   }
 
-  void _maybeNormalizeCyclicExtension({required bool collapseToNormal}) {
+  // Where the extended strip should come to rest, as the pixels the normal
+  // strip needs to show the same thing. `collapseNow` is true when the
+  // viewport already shows what the normal strip can show (it lies inside
+  // one copy, or in the padding beyond the strip's ends), so the collapse is
+  // invisible; otherwise `extendedPixels` is the position to animate the
+  // extended strip to first. After a pull whose selection has not changed
+  // that is the wrapped-to copy with its edge tab flush against the viewport
+  // edge: the tabs the user pulled in. Otherwise (the page view moved the
+  // selection, or drove the wrap itself) it is the nearest position inside
+  // the copy that holds the copy of the selected tab nearest the viewport, so
+  // the selected tab stays in view and the strip moves as little as
+  // possible.
+  ({
+    double normalPixels,
+    double extendedPixels,
+    bool collapseNow,
+    double? stripEdgePixels,
+  })?
+  _cyclicRestingPosition(ScrollMetrics metrics) {
     if (_stripMode == _CyclicTabStripMode.normal ||
-        _normalizationPending ||
         _singleCycleTabStripWidth == 0.0 ||
+        !_tabOffsetsMatchRenderedTabs ||
+        _currentIndex == null ||
+        !metrics.hasPixels ||
+        !metrics.hasViewportDimension) {
+      return null;
+    }
+    final double seam = _singleCycleTabStripWidth;
+    final (double paddingStart, double paddingEnd) = _resolvedScrollPadding(
+      Directionality.of(context),
+    );
+    final double viewport = metrics.viewportDimension;
+    final double normalMaxExtent = math.max(
+      0.0,
+      seam + paddingStart + paddingEnd - viewport,
+    );
+    // The range of extended pixels at which the viewport shows exactly what
+    // the normal strip shows at `pixels - copy * seam`.
+    (double, double) copyRange(int copy) => switch (copy) {
+      0 => (0.0, paddingStart + seam - viewport),
+      _ => (paddingStart + seam, metrics.maxScrollExtent),
+    };
+
+    for (int copy = 0; copy < _kCyclicRenderedCycles; copy += 1) {
+      final (double low, double high) = copyRange(copy);
+      if (metrics.pixels >= low - _kCyclicNormalizationEpsilon &&
+          metrics.pixels <= high + _kCyclicNormalizationEpsilon) {
+        return (
+          normalPixels: clampDouble(
+            metrics.pixels - copy * seam,
+            0.0,
+            normalMaxExtent,
+          ),
+          extendedPixels: metrics.pixels,
+          collapseNow: true,
+          stripEdgePixels: null,
+        );
+      }
+    }
+
+    final bool restOnPulledTabs = _wrapSelectedIndexAtCommit == _currentIndex;
+    final int copy = restOnPulledTabs
+        ? switch (_stripMode) {
+            _CyclicTabStripMode.extendedTrailing => 1,
+            _CyclicTabStripMode.extendedLeading ||
+            _CyclicTabStripMode.normal => 0,
+          }
+        : _renderIndexFor(_currentIndex!) ~/ widget.tabs.length;
+    final (double low, double high) = copyRange(copy);
+    final double extendedPixels = high < low
+        ? low
+        : restOnPulledTabs
+        // The wrapped-to copy's edge tab flush against the viewport edge.
+        ? (copy == 1 ? low : high)
+        : clampDouble(metrics.pixels, low, high);
+    return (
+      normalPixels: clampDouble(
+        extendedPixels - copy * seam,
+        0.0,
+        normalMaxExtent,
+      ),
+      extendedPixels: extendedPixels,
+      collapseNow: false,
+      // The pulled-in tabs rest where they sit when the screen opens: at the
+      // strip's start (leading padding showing) or end. That picture has no
+      // counterpart in the extended strip when there is padding, so it is
+      // reached after the collapse, in single-strip coordinates.
+      stripEdgePixels: restOnPulledTabs
+          ? (copy == 1 ? 0.0 : normalMaxExtent)
+          : null,
+    );
+  }
+
+  // Once the user has let go and the strip is still, bring the wrap to an
+  // end: collapse to the normal strip where that is invisible, or first ease
+  // the extended strip onto a clean resting position (`animate`) and collapse
+  // when that animation ends. Called from every idle transition, so no commit
+  // or cancelled stretch can leave the strip extended with its edge pulls
+  // ignored.
+  void _settleCyclicExtensionIfIdle({
+    required bool animate,
+    bool interruptFling = false,
+  }) {
+    if (_stripMode == _CyclicTabStripMode.normal ||
+        _extensionCommitPending ||
+        _normalizationPending ||
         _scrollController == null ||
         !_scrollController!.hasClients) {
       return;
     }
-
     final ScrollPosition position = _scrollController!.position;
-    final double seam = _singleCycleTabStripWidth;
-    final double leftEdge = position.pixels;
-    final double rightEdge = position.pixels + position.viewportDimension;
-    double? normalizedPixels;
-    switch (_stripMode) {
-      case _CyclicTabStripMode.normal:
-        break;
-      case _CyclicTabStripMode.extendedLeading:
-        if (rightEdge < seam - _kCyclicNormalizationEpsilon) {
-          normalizedPixels = position.pixels;
-        } else if (leftEdge > seam + _kCyclicNormalizationEpsilon) {
-          normalizedPixels = position.pixels - seam;
-        }
-        break;
-      case _CyclicTabStripMode.extendedTrailing:
-        if (leftEdge > seam + _kCyclicNormalizationEpsilon) {
-          normalizedPixels = position.pixels - seam;
-        } else if (rightEdge < seam - _kCyclicNormalizationEpsilon) {
-          normalizedPixels = position.pixels;
-        }
-        break;
+    if (position.isScrollingNotifier.value && !interruptFling) {
+      return;
     }
-
-    if (normalizedPixels == null) {
+    final resting = _cyclicRestingPosition(position);
+    if (resting == null) {
+      return;
+    }
+    if (!resting.collapseNow && !animate) {
       return;
     }
 
+    // Deferred: scroll notifications can arrive during layout, collapsing the
+    // strip rebuilds it, and starting an animation from inside the activity
+    // change that ended the previous one is not allowed.
     _normalizationPending = true;
+    WidgetsBinding.instance.ensureVisualUpdate();
     WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
+      _normalizationPending = false;
       if (!mounted ||
+          _stripMode == _CyclicTabStripMode.normal ||
           _scrollController == null ||
           !_scrollController!.hasClients) {
-        _normalizationPending = false;
         return;
       }
-      final double targetPixels = normalizedPixels!;
-      final ScrollPosition extendedPosition = _scrollController!.position;
-      if (!collapseToNormal) {
-        final double extendedTarget = clampDouble(
-          targetPixels,
-          extendedPosition.minScrollExtent,
-          extendedPosition.maxScrollExtent,
-        );
-        if ((extendedPosition.pixels - extendedTarget).abs() >
-            _kCyclicNormalizationEpsilon) {
-          _scrollController!.jumpTo(extendedTarget);
-        }
-        _normalizationPending = false;
+      final ScrollPosition position = _scrollController!.position;
+      // Recheck now: the user may have started scrolling again, in which case
+      // the next idle transition settles the strip instead.
+      if (position.isScrollingNotifier.value && !interruptFling) {
         return;
       }
+      final resting = _cyclicRestingPosition(position);
+      if (resting == null) {
+        return;
+      }
+      if (resting.collapseNow) {
+        _collapseCyclicExtension(resting.normalPixels);
+        return;
+      }
+      _restAtStripEdge = resting.stripEdgePixels;
+      final double target = clampDouble(
+        resting.extendedPixels,
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      if ((position.pixels - target).abs() <= _kCyclicNormalizationEpsilon) {
+        // Already there but not inside one copy (the strip barely overflows
+        // the viewport): collapse anyway, accepting the small shift.
+        _collapseCyclicExtension(resting.normalPixels);
+        return;
+      }
+      // The collapse follows from the idle transition at the end of this
+      // animation. Any ease to the strip's edge after it runs the other way,
+      // so this one decelerates into the collapse rather than easing in.
+      _scrollController!.animateTo(
+        target,
+        duration: kTabScrollDuration,
+        curve: Curves.ease,
+      );
+    });
+  }
 
-      _schedulePixelsCorrection(targetPixels);
-      _updateStripMode(_CyclicTabStripMode.normal);
-      WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
-        _normalizationPending = false;
-        if (!mounted ||
-            _scrollController == null ||
-            !_scrollController!.hasClients) {
-          return;
-        }
-        final ScrollPosition normalizedPosition = _scrollController!.position;
-        final double normalizedTarget = clampDouble(
-          targetPixels,
-          normalizedPosition.minScrollExtent,
-          normalizedPosition.maxScrollExtent,
-        );
-        if ((normalizedPosition.pixels - normalizedTarget).abs() >
-            _kCyclicNormalizationEpsilon) {
-          _scrollController!.jumpTo(normalizedTarget);
-        }
-      });
+  // Replaces the extended strip with the normal one at [normalPixels], which
+  // shows the same picture, and then, after a pull-wrap, eases on to the
+  // strip's start or end so the pulled-in tabs sit where they do when the
+  // screen opens.
+  void _collapseCyclicExtension(double normalPixels) {
+    final double? stripEdge = _restAtStripEdge;
+    _restAtStripEdge = null;
+    _normalizationPending = true;
+    _schedulePixelsCorrection(normalPixels);
+    _updateStripMode(_CyclicTabStripMode.normal);
+    WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
+      _normalizationPending = false;
+      if (stripEdge == null ||
+          !mounted ||
+          _scrollController == null ||
+          !_scrollController!.hasClients) {
+        return;
+      }
+      final ScrollPosition position = _scrollController!.position;
+      final double target = clampDouble(
+        stripEdge,
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      if ((position.pixels - target).abs() <= _kCyclicNormalizationEpsilon) {
+        return;
+      }
+      position.animateTo(
+        target,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+      );
     });
   }
 
@@ -2187,6 +2557,81 @@ class _TabBarState extends State<CyclicTabBar>
     return null;
   }
 
+  // Whether this frame of a stretch may commit the wrap. Only a deliberate
+  // pull commits: a finger frame moving no faster than
+  // _kCyclicCommitMaxVelocity past the drag threshold, a trackpad overscroll
+  // past the deeper pointer threshold that was already visible on a previous
+  // frame, or (see _handleDragReleased) a slow release. Fast swipes and the
+  // fling frames that follow them only stretch and spring back.
+  bool _canCommitStretch({
+    required bool isPointerDriven,
+    required double previousStretchExtent,
+    required double stretchExtent,
+    required double? dragSpeed,
+  }) {
+    if (isPointerDriven) {
+      return _scrollStartedByTrackpad &&
+          previousStretchExtent > 0.0 &&
+          stretchExtent >= _kCyclicPointerCommitThreshold;
+    }
+    return dragSpeed != null &&
+        dragSpeed <= _kCyclicCommitMaxVelocity &&
+        stretchExtent >= _kCyclicCommitThreshold;
+  }
+
+  // The finger's movement in this drag frame, in px. Measured on the finger
+  // rather than the scroll: bouncing physics scale the scroll down past the
+  // edge, which would make a flick read as a slow pull and a long pull as a
+  // short one.
+  double _fingerDelta(DragUpdateDetails? dragDetails) => dragDetails == null
+      ? 0.0
+      : (dragDetails.primaryDelta ?? dragDetails.delta.dx);
+
+  // Finger speed over this drag frame in px/s, or null when it cannot be
+  // measured (first frame, or no time stamps), which counts as fast.
+  double? _measureDragSpeed(DragUpdateDetails? dragDetails) {
+    final Duration? timeStamp = dragDetails?.sourceTimeStamp;
+    final double distance = _fingerDelta(dragDetails);
+    final Duration? previous = _lastDragTimeStamp;
+    _lastDragTimeStamp = timeStamp;
+    if (timeStamp == null || previous == null) {
+      return null;
+    }
+    final int microseconds = (timeStamp - previous).inMicroseconds;
+    if (microseconds <= 0) {
+      return null;
+    }
+    return distance.abs() * Duration.microsecondsPerSecond / microseconds;
+  }
+
+  // Called by the scroll position when a drag ends. A pull held past the
+  // threshold and let go gently commits here even if no single frame was
+  // slow enough; a flick does not.
+  void _handleDragReleased(double velocity) {
+    if (!mounted || !widget.isScrollable) {
+      return;
+    }
+    if (_stripMode != _CyclicTabStripMode.normal) {
+      // A wrap committed during the drag: however the finger left, ease
+      // onto the resting position rather than coasting on into the next
+      // cycle.
+      _settleCyclicExtensionIfIdle(animate: true, interruptFling: true);
+      return;
+    }
+    if (_hasStretchPreview &&
+        _scrollController != null &&
+        _scrollController!.hasClients) {
+      _releaseStretchExtent = _stretchExtent;
+      _releaseOverscroll = _outOfRangeExtent(_scrollController!.position);
+    }
+    if (velocity.abs() > _kCyclicCommitMaxVelocity ||
+        !_hasStretchPreview ||
+        _stretchExtent < _kCyclicCommitThreshold) {
+      return;
+    }
+    _commitCyclicExtension(_stretchDirection!, fromDrag: true, released: true);
+  }
+
   bool _handleScrollableNotification(ScrollNotification notification) {
     if (!widget.isScrollable ||
         _scrollController == null ||
@@ -2197,14 +2642,37 @@ class _TabBarState extends State<CyclicTabBar>
 
     _syncScrollingNotifier();
 
+    if (notification is ScrollStartNotification) {
+      _scrollStartedByTrackpad =
+          notification.dragDetails?.kind == PointerDeviceKind.trackpad;
+      _lastDragTimeStamp = notification.dragDetails?.sourceTimeStamp;
+      _releaseStretchExtent = 0.0;
+      _releaseOverscroll = 0.0;
+    }
+
+    final bool isIdleNotification =
+        notification is ScrollEndNotification ||
+        (notification is UserScrollNotification &&
+            notification.direction == ScrollDirection.idle);
+
     if (_stripMode != _CyclicTabStripMode.normal) {
       if (_extensionCommitPending) {
         return false;
       }
-      if (notification is ScrollEndNotification ||
-          (notification is UserScrollNotification &&
-              notification.direction == ScrollDirection.idle)) {
-        _maybeNormalizeCyclicExtension(collapseToNormal: true);
+      if (notification is ScrollUpdateNotification &&
+          notification.dragDetails != null) {
+        // The user took over from the resting animation: wherever this
+        // scroll ends up is where the strip rests, not the strip's edge.
+        // (A drag that starts mid-animation sends no ScrollStart.)
+        _restAtStripEdge = null;
+      }
+      if (isIdleNotification) {
+        // A bare ScrollEnd also follows every jumpTo that keeps the strip in
+        // step with a page swipe; only collapse invisibly then, and leave the
+        // resting animation to the user's own idle transition.
+        _settleCyclicExtensionIfIdle(
+          animate: notification is UserScrollNotification,
+        );
       }
       return false;
     }
@@ -2217,24 +2685,67 @@ class _TabBarState extends State<CyclicTabBar>
       final double previousStretchExtent = _stretchDirection == direction
           ? _stretchExtent
           : 0.0;
-      final double extent = _applyStretchResistance(
-        _outOfRangeExtent(notification.metrics),
-        isPointerDriven: isPointerDrivenUpdate,
-      );
+      final double overscroll = _outOfRangeExtent(notification.metrics);
+      final double extent;
+      if (!isPointerDrivenUpdate) {
+        // Bouncing physics: the stretch is the finger's own travel past the
+        // edge, so a wrap takes the same pull as under clamping physics,
+        // however much the physics resist the scroll.
+        final double fingerDelta = _fingerDelta(notification.dragDetails);
+        final double scrollDelta = notification.scrollDelta ?? 0.0;
+        final bool outward = switch (direction) {
+          _CyclicStretchDirection.trailing => scrollDelta > 0.0,
+          _CyclicStretchDirection.leading => scrollDelta < 0.0,
+          null => false,
+        };
+        extent = direction == null
+            ? 0.0
+            : clampDouble(
+                previousStretchExtent +
+                    (outward ? fingerDelta.abs() : -fingerDelta.abs()),
+                0.0,
+                _kCyclicMaxStretch,
+              );
+      } else if (_scrollStartedByTrackpad || _releaseOverscroll <= 0.0) {
+        extent = _applyStretchResistance(overscroll, isPointerDriven: true);
+      } else {
+        // Bounce-back after a touch drag: retreat with the overscroll.
+        extent = clampDouble(
+          _releaseStretchExtent * overscroll / _releaseOverscroll,
+          0.0,
+          _kCyclicMaxStretch,
+        );
+      }
+      final double? dragSpeed = isPointerDrivenUpdate
+          ? null
+          : _measureDragSpeed(notification.dragDetails);
       if (direction != null && extent > 0.0) {
         _setStretchPreview(direction, extent);
-        final bool canCommit = isPointerDrivenUpdate
-            ? previousStretchExtent > 0.0 &&
-                  extent >= _kCyclicPointerCommitThreshold
-            : extent >= _kCyclicCommitThreshold;
-        if (canCommit) {
-          _commitCyclicExtension(direction);
+        if (_canCommitStretch(
+          isPointerDriven: isPointerDrivenUpdate,
+          previousStretchExtent: previousStretchExtent,
+          stretchExtent: extent,
+          dragSpeed: dragSpeed,
+        )) {
+          _commitCyclicExtension(direction, fromDrag: !isPointerDrivenUpdate);
         }
         return false;
       }
 
       if (_hasStretchPreview && !_scrollController!.position.outOfRange) {
-        _clearStretchPreview(animated: false);
+        if (notification.dragDetails != null) {
+          // The finger came back inside the range: let the preview retreat
+          // with it instead of vanishing on a jitter.
+          final double remaining =
+              _stretchExtent - _fingerDelta(notification.dragDetails).abs();
+          if (remaining > 0.0) {
+            _setStretchPreview(_stretchDirection!, remaining);
+          } else {
+            _clearStretchPreview(animated: false);
+          }
+        } else {
+          _clearStretchPreview(animated: false);
+        }
       }
     }
 
@@ -2248,6 +2759,9 @@ class _TabBarState extends State<CyclicTabBar>
       }
 
       final bool isPointerDrivenOverscroll = notification.dragDetails == null;
+      final double? dragSpeed = isPointerDrivenOverscroll
+          ? null
+          : _measureDragSpeed(notification.dragDetails);
       final double previousStretchExtent = _stretchDirection == direction
           ? _stretchExtent
           : 0.0;
@@ -2267,19 +2781,18 @@ class _TabBarState extends State<CyclicTabBar>
       );
       stretchExtent = clampDouble(stretchExtent, 0.0, _kCyclicMaxStretch);
       _setStretchPreview(direction, stretchExtent);
-      final bool canCommit = isPointerDrivenOverscroll
-          ? previousStretchExtent > 0.0 &&
-                stretchExtent >= _kCyclicPointerCommitThreshold
-          : stretchExtent >= _kCyclicCommitThreshold;
-      if (canCommit) {
-        _commitCyclicExtension(direction);
+      if (_canCommitStretch(
+        isPointerDriven: isPointerDrivenOverscroll,
+        previousStretchExtent: previousStretchExtent,
+        stretchExtent: stretchExtent,
+        dragSpeed: dragSpeed,
+      )) {
+        _commitCyclicExtension(direction, fromDrag: !isPointerDrivenOverscroll);
       }
       return false;
     }
 
-    if (notification is ScrollEndNotification ||
-        (notification is UserScrollNotification &&
-            notification.direction == ScrollDirection.idle)) {
+    if (isIdleNotification) {
       _clearStretchPreview(animated: true);
     }
 
@@ -2294,13 +2807,30 @@ class _TabBarState extends State<CyclicTabBar>
     };
   }
 
-  double _stretchTranslationX(TextDirection textDirection) {
+  // How far the strip is pushed in to make room for the preview. Under
+  // bouncing physics the viewport's own overscroll already moves the strip
+  // with the finger (plus the physics' resistance) and opens a gap at the
+  // edge; the preview fills that gap, so the strip is not pushed any further
+  // and does not run ahead of the finger. Under clamping physics the viewport
+  // never moves past the edge, so the whole stretch is a push.
+  double _stretchTranslationExtent(ScrollMetrics metrics) {
     if (!_hasStretchPreview) {
       return 0.0;
     }
-    return _previewAppearsOnLeft(textDirection)
-        ? _stretchExtent
-        : -_stretchExtent;
+    return _outOfRangeExtent(metrics) > 0.0 ? 0.0 : _stretchExtent;
+  }
+
+  double _stretchTranslationX(TextDirection textDirection) {
+    if (!_hasStretchPreview ||
+        _scrollController == null ||
+        !_scrollController!.hasClients ||
+        !_scrollController!.position.hasPixels) {
+      return 0.0;
+    }
+    final double translation = _stretchTranslationExtent(
+      _scrollController!.position,
+    );
+    return _previewAppearsOnLeft(textDirection) ? translation : -translation;
   }
 
   Widget _buildStretchPreview(
@@ -2313,6 +2843,22 @@ class _TabBarState extends State<CyclicTabBar>
 
     _syncStretchPreviewArtifacts();
     final bool previewOnLeft = _previewAppearsOnLeft(textDirection);
+    // Keep the preview flush against the end of the strip. Under bouncing
+    // physics the strip has moved past the edge by the viewport's overscroll;
+    // the preview shows as much of the next cycle as fits in that gap (the
+    // stretch itself may be larger, being the finger's travel), and when the
+    // gap is wider the remainder stays empty, like any overscroll.
+    final ScrollPosition? position =
+        _scrollController != null && _scrollController!.hasClients
+        ? _scrollController!.position
+        : null;
+    final double overscroll = position != null && position.hasPixels
+        ? _outOfRangeExtent(position)
+        : 0.0;
+    final double previewWidth = overscroll > 0.0
+        ? math.min(_stretchExtent, overscroll)
+        : _stretchExtent;
+    final double previewInset = math.max(0.0, overscroll - previewWidth);
     final List<Widget> previewTabs = List<Widget>.generate(widget.tabs.length, (
       int index,
     ) {
@@ -2349,22 +2895,32 @@ class _TabBarState extends State<CyclicTabBar>
       ),
     );
 
-    return IgnorePointer(
-      child: Align(
-        alignment: previewOnLeft ? Alignment.centerLeft : Alignment.centerRight,
-        child: SizedBox(
-          width: _stretchExtent,
-          height: widget.preferredSize.height,
-          child: ClipRect(
-            child: OverflowBox(
-              minWidth: 0.0,
-              maxWidth: double.infinity,
-              minHeight: widget.preferredSize.height,
-              maxHeight: widget.preferredSize.height,
-              alignment: previewOnLeft
-                  ? Alignment.centerRight
-                  : Alignment.centerLeft,
-              child: previewStrip,
+    return ExcludeSemantics(
+      child: IgnorePointer(
+        child: Align(
+          alignment: previewOnLeft
+              ? Alignment.centerLeft
+              : Alignment.centerRight,
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: previewOnLeft ? previewInset : 0.0,
+              right: previewOnLeft ? 0.0 : previewInset,
+            ),
+            child: SizedBox(
+              width: previewWidth,
+              height: widget.preferredSize.height,
+              child: ClipRect(
+                child: OverflowBox(
+                  minWidth: 0.0,
+                  maxWidth: double.infinity,
+                  minHeight: widget.preferredSize.height,
+                  maxHeight: widget.preferredSize.height,
+                  alignment: previewOnLeft
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: previewStrip,
+                ),
+              ),
             ),
           ),
         ),
@@ -2373,6 +2929,21 @@ class _TabBarState extends State<CyclicTabBar>
   }
 
   int get maxTabIndex => _indicatorPainter!.maxTabIndex;
+
+  // Scroll coordinate (distance from the scroll start, padding included) of
+  // the center of the rendered tab at [index].
+  double _tabCenterScrollPosition(int index, TextDirection textDirection) {
+    double tabCenter = _indicatorPainter!.centerOf(index);
+    double paddingStart;
+    switch (textDirection) {
+      case TextDirection.rtl:
+        paddingStart = widget.padding?.resolve(TextDirection.rtl).right ?? 0;
+        tabCenter = _tabStripWidth - tabCenter;
+      case TextDirection.ltr:
+        paddingStart = widget.padding?.resolve(TextDirection.ltr).left ?? 0;
+    }
+    return tabCenter + paddingStart;
+  }
 
   double _tabScrollOffset(
     int index,
@@ -2383,21 +2954,29 @@ class _TabBarState extends State<CyclicTabBar>
     if (!widget.isScrollable) {
       return 0.0;
     }
-    double tabCenter = _indicatorPainter!.centerOf(index);
-    double paddingStart;
-    switch (Directionality.of(context)) {
-      case TextDirection.rtl:
-        paddingStart = widget.padding?.resolve(TextDirection.rtl).right ?? 0;
-        tabCenter = _tabStripWidth - tabCenter;
-      case TextDirection.ltr:
-        paddingStart = widget.padding?.resolve(TextDirection.ltr).left ?? 0;
-    }
-
-    return clampDouble(
-      tabCenter + paddingStart - viewportWidth / 2.0,
+    final TextDirection textDirection = Directionality.of(context);
+    final double offset = clampDouble(
+      _tabCenterScrollPosition(index, textDirection) - viewportWidth / 2.0,
       minExtent,
       maxExtent,
     );
+    if (_stripMode == _CyclicTabStripMode.normal ||
+        _singleCycleTabStripWidth == 0.0) {
+      return offset;
+    }
+    // While extended, keep the target inside the copy that holds the tab so
+    // the strip comes to rest showing only what the normal strip can show,
+    // and the collapse that follows is invisible.
+    final int copy = index ~/ widget.tabs.length;
+    final double paddingStart = _paddingStart(textDirection);
+    final (double low, double high) = switch (copy) {
+      0 => (
+        minExtent,
+        paddingStart + _singleCycleTabStripWidth - viewportWidth,
+      ),
+      _ => (paddingStart + _singleCycleTabStripWidth, maxExtent),
+    };
+    return high < low ? offset : clampDouble(offset, low, high);
   }
 
   double _tabCenteredScrollOffset(int index) {
@@ -2424,6 +3003,11 @@ class _TabBarState extends State<CyclicTabBar>
   }
 
   void _scrollToCurrentIndex() {
+    if (!_tabOffsetsMatchRenderedTabs) {
+      // The strip is between modes; the pending pixels correction will place
+      // the selected tab once the new layout is in.
+      return;
+    }
     final double offset = _tabCenteredScrollOffset(_selectedRenderIndex);
     _scrollController!.animateTo(
       offset,
@@ -2433,21 +3017,25 @@ class _TabBarState extends State<CyclicTabBar>
   }
 
   void _scrollToControllerValue() {
+    if (!_tabOffsetsMatchRenderedTabs) {
+      return;
+    }
     final int currentRenderIndex = _selectedRenderIndex;
-    final double? leadingPosition = _currentIndex! > 0
+    // While extended, the neighbours of the first and last tab are the
+    // adjacent copies' last and first tab, so a page bounce past either end
+    // (or a looping tab view) moves the strip the natural way.
+    final bool cyclicNeighbours = _stripMode != _CyclicTabStripMode.normal;
+    final double? leadingPosition = cyclicNeighbours || _currentIndex! > 0
         ? _tabCenteredScrollOffset(currentRenderIndex - 1)
         : null;
     final double middlePosition = _tabCenteredScrollOffset(currentRenderIndex);
-    final double? trailingPosition = _currentIndex! < widget.tabs.length - 1
+    final double? trailingPosition =
+        cyclicNeighbours || _currentIndex! < widget.tabs.length - 1
         ? _tabCenteredScrollOffset(currentRenderIndex + 1)
         : null;
 
-    final double index =
-        _controller!.index.toDouble() +
-        (_activeRenderCycleIndex * widget.tabs.length);
-    final double value =
-        _controller!.animation!.value +
-        (_activeRenderCycleIndex * widget.tabs.length);
+    final double index = _controller!.index.toDouble();
+    final double value = _controller!.animation!.value;
     final double offset = switch (value - index) {
       -1.0 => leadingPosition ?? middlePosition,
       1.0 => trailingPosition ?? middlePosition,
@@ -2470,7 +3058,47 @@ class _TabBarState extends State<CyclicTabBar>
     if (!_controller!.indexIsChanging && widget.isScrollable) {
       // Sync the TabBar's scroll position with the TabBarView's PageView.
       _currentIndex = _controller!.index;
+      _extendForPageWrapIfNeeded();
       _scrollToControllerValue();
+    }
+  }
+
+  // A looping page view drives the controller's value past the first or last
+  // tab. The plain strip has no tab there to follow, so extend it (at the
+  // same picture) and let the cyclic neighbours take over.
+  void _extendForPageWrapIfNeeded() {
+    if (_stripMode != _CyclicTabStripMode.normal ||
+        _extensionCommitPending ||
+        _singleCycleTabStripWidth == 0.0 ||
+        _scrollController == null ||
+        !_scrollController!.hasClients) {
+      return;
+    }
+    final double value = _controller!.animation!.value;
+    if (value >= 0.0 && value <= widget.tabs.length - 1) {
+      return;
+    }
+    final ScrollPosition position = _scrollController!.position;
+    if (!position.hasPixels ||
+        position.maxScrollExtent <= position.minScrollExtent ||
+        _singleCycleTabStripWidth <= position.viewportDimension) {
+      // Nothing to scroll: a second copy would just widen a strip that fits.
+      // The indicator and label styles still follow the wrap off the strip.
+      return;
+    }
+    _wrapSelectedIndexAtCommit = null;
+    if (value > widget.tabs.length - 1) {
+      _enterExtendedMode(
+        _CyclicTabStripMode.extendedTrailing,
+        position.pixels,
+        feedback: false,
+      );
+    } else {
+      _enterExtendedMode(
+        _CyclicTabStripMode.extendedLeading,
+        position.pixels + _singleCycleTabStripWidth,
+        feedback: false,
+      );
     }
   }
 
@@ -2493,22 +3121,90 @@ class _TabBarState extends State<CyclicTabBar>
     TextDirection textDirection,
     double width,
   ) {
+    final List<double>? previousTabOffsets =
+        _indicatorPainter?._currentTabOffsets;
+    final TextDirection? previousTextDirection =
+        _indicatorPainter?._currentTextDirection;
+    final double previousWidth = _tabStripWidth;
     _tabStripWidth = width;
     if (widget.tabs.isNotEmpty && tabOffsets.length > widget.tabs.length) {
       _singleCycleTabStripWidth =
           (tabOffsets[widget.tabs.length] - tabOffsets[0]).abs();
     }
     _indicatorPainter?.saveTabOffsets(tabOffsets, textDirection);
+    if (previousTextDirection == textDirection) {
+      _anchorSelectedTabAfterRelayout(
+        previousTabOffsets,
+        previousWidth,
+        tabOffsets,
+        width,
+        textDirection,
+      );
+    }
+  }
+
+  // When tab widths change under a resting strip (a count appearing in a
+  // label, say), keep the selected tab where it was on screen rather than
+  // letting the content slide under it or re-centering, which both read as
+  // the strip jumping. Runs inside the viewport's layout, before it applies
+  // the content dimensions, so the correction lands in the same frame.
+  void _anchorSelectedTabAfterRelayout(
+    List<double>? previousTabOffsets,
+    double previousWidth,
+    List<double> tabOffsets,
+    double width,
+    TextDirection textDirection,
+  ) {
+    if (!widget.isScrollable ||
+        previousTabOffsets == null ||
+        previousTabOffsets.length != tabOffsets.length ||
+        listEquals(previousTabOffsets, tabOffsets) ||
+        _pendingPixelsCorrection != null ||
+        _currentIndex == null ||
+        _scrollController == null ||
+        !_scrollController!.hasClients) {
+      return;
+    }
+    final ScrollPosition position = _scrollController!.position;
+    if (!position.hasPixels ||
+        !position.hasViewportDimension ||
+        position.isScrollingNotifier.value) {
+      return;
+    }
+    final int renderIndex = _selectedRenderIndex;
+    if (renderIndex + 1 >= tabOffsets.length) {
+      return;
+    }
+    // Offsets are paint coordinates; in RTL the scroll start is the right
+    // edge, so convert both layouts to scroll coordinates before comparing.
+    double scrollCenter(List<double> offsets, double stripWidth) {
+      final double paintCenter =
+          (offsets[renderIndex] + offsets[renderIndex + 1]) / 2.0;
+      return switch (textDirection) {
+        TextDirection.ltr => paintCenter,
+        TextDirection.rtl => stripWidth - paintCenter,
+      };
+    }
+
+    final double paddingStart = _paddingStart(textDirection);
+    final double previousCenter =
+        scrollCenter(previousTabOffsets, previousWidth) + paddingStart;
+    final double center = scrollCenter(tabOffsets, width) + paddingStart;
+    final double delta = center - previousCenter;
+    if (delta.abs() <= _kCyclicNormalizationEpsilon) {
+      return;
+    }
+    final bool wasOnScreen =
+        previousCenter >= position.pixels &&
+        previousCenter <= position.pixels + position.viewportDimension;
+    if (!wasOnScreen) {
+      return;
+    }
+    _schedulePixelsCorrection(position.pixels + delta);
   }
 
   void _handleTap(_RenderedTabEntry entry) {
     assert(entry.sourceIndex >= 0 && entry.sourceIndex < widget.tabs.length);
-    if (entry.renderCycleIndex != _activeRenderCycleIndex) {
-      setState(() {
-        _activeRenderCycleIndexValue = entry.renderCycleIndex;
-      });
-      _initIndicatorPainter();
-    }
     _controller!.animateTo(entry.sourceIndex);
     widget.onTap?.call(entry.sourceIndex);
   }
@@ -2637,27 +3333,21 @@ class _TabBarState extends State<CyclicTabBar>
         bool isSelected,
         Animation<double> animation,
       ) {
-        wrappedTabs[renderIndex] = _buildStyledTab(
-          wrappedTabs[renderIndex],
-          isSelected,
-          animation,
-          _defaults,
-        );
-        if (_stripMode == _CyclicTabStripMode.normal) {
-          return;
+        // Every rendered copy of the tab shares its style, so the
+        // duplicated cycles read as one continuous strip.
+        final int sourceIndex = renderIndex % tabCount;
+        for (int cycle = 0; cycle < _renderedCycleCount; cycle += 1) {
+          final int mirrorIndex = sourceIndex + cycle * tabCount;
+          if (mirrorIndex < 0 || mirrorIndex >= wrappedTabs.length) {
+            continue;
+          }
+          wrappedTabs[mirrorIndex] = _buildStyledTab(
+            wrappedTabs[mirrorIndex],
+            isSelected,
+            animation,
+            _defaults,
+          );
         }
-        final int mirrorIndex = renderIndex < tabCount
-            ? renderIndex + tabCount
-            : renderIndex - tabCount;
-        if (mirrorIndex < 0 || mirrorIndex >= wrappedTabs.length) {
-          return;
-        }
-        wrappedTabs[mirrorIndex] = _buildStyledTab(
-          wrappedTabs[mirrorIndex],
-          isSelected,
-          animation,
-          _defaults,
-        );
       }
 
       if (_controller!.indexIsChanging) {
@@ -2673,17 +3363,22 @@ class _TabBarState extends State<CyclicTabBar>
           _currentIndex!,
         );
         applyStyledTab(selectedRenderIndex, true, centerAnimation);
-        if (_currentIndex! > 0) {
+        // Neighbours across the wrap matter only to a looping tab view;
+        // applyStyledTab styles every copy of a tab, so the wrapped index
+        // works in the plain strip too.
+        if (_currentIndex! > 0 || tabCount > 2) {
+          final int previousIndex = (_currentIndex! - 1 + tabCount) % tabCount;
           final Animation<double> previousAnimation = ReverseAnimation(
-            _DragAnimation(_controller!, _currentIndex! - 1),
+            _DragAnimation(_controller!, previousIndex),
           );
-          applyStyledTab(selectedRenderIndex - 1, false, previousAnimation);
+          applyStyledTab(previousIndex, false, previousAnimation);
         }
-        if (_currentIndex! < widget.tabs.length - 1) {
+        if (_currentIndex! < tabCount - 1 || tabCount > 2) {
+          final int nextIndex = (_currentIndex! + 1) % tabCount;
           final Animation<double> nextAnimation = ReverseAnimation(
-            _DragAnimation(_controller!, _currentIndex! + 1),
+            _DragAnimation(_controller!, nextIndex),
           );
-          applyStyledTab(selectedRenderIndex + 1, false, nextAnimation);
+          applyStyledTab(nextIndex, false, nextAnimation);
         }
       }
     }
@@ -2762,6 +3457,12 @@ class _TabBarState extends State<CyclicTabBar>
       wrappedTabs[renderedIndex] = MergeSemantics(
         child: wrappedTabs[renderedIndex],
       );
+      if (_stripMode != _CyclicTabStripMode.normal &&
+          entry.renderCycleIndex != _activeRenderCycleIndex) {
+        wrappedTabs[renderedIndex] = ExcludeSemantics(
+          child: wrappedTabs[renderedIndex],
+        );
+      }
       if (!widget.isScrollable && effectiveTabAlignment == TabAlignment.fill) {
         wrappedTabs[renderedIndex] = Expanded(
           child: wrappedTabs[renderedIndex],
@@ -2802,6 +3503,7 @@ class _TabBarState extends State<CyclicTabBar>
               start: _kStartOffset,
             ).add(widget.padding ?? EdgeInsets.zero)
           : widget.padding;
+      _effectiveScrollPaddingValue = effectivePadding;
       _scrollController ??= _TabBarScrollController(this);
       tabBar = NotificationListener<ScrollNotification>(
         onNotification: _handleScrollableNotification,
@@ -2910,6 +3612,8 @@ class CyclicTabBarView extends StatefulWidget {
     this.dragStartBehavior = DragStartBehavior.start,
     this.viewportFraction = 1.0,
     this.clipBehavior = Clip.hardEdge,
+    this.loop = false,
+    this.loopSentinelBuilder,
   });
 
   /// This widget's selection and animation state.
@@ -2946,6 +3650,37 @@ class CyclicTabBarView extends StatefulWidget {
   /// Defaults to [Clip.hardEdge].
   final Clip clipBehavior;
 
+  /// Whether swiping past the last page continues to the first page and
+  /// swiping before the first page continues to the last.
+  ///
+  /// The [controller] keeps its normal index range. The wrap is done by
+  /// scrolling onto a sentinel copy of the neighbouring page and jumping to
+  /// the real one once the scroll settles, so the first and last page are
+  /// built a second time while a wrap is in flight and that page's state is
+  /// rebuilt at the wrap. By default the sentinel is the same widget as the
+  /// real page; a page that holds a [GlobalKey] or a controller meant for a
+  /// single instance would then fail or share state, so such pages must
+  /// supply [loopSentinelBuilder]. Programmatic changes between the first and
+  /// last tab animate across the wrap as well; a paired [CyclicTabBar] still
+  /// moves its indicator and scroll position the long way round for those.
+  /// A paired scrollable [CyclicTabBar] that overflows its viewport follows a
+  /// swiped wrap cyclically; a strip that fits slides its indicator off the
+  /// end toward the wrapped-to tab instead.
+  ///
+  /// Has no effect with fewer than two [children]. Defaults to false.
+  final bool loop;
+
+  /// Builds the sentinel copy of the page at [index] (always `0` or
+  /// `children.length - 1`) that is shown while a wrap is in flight when
+  /// [loop] is true.
+  ///
+  /// Use it when the real page cannot be built twice, for instance because
+  /// it holds a [GlobalKey] or a single-instance controller. The sentinel is
+  /// never the current page, is not interactive for long, and is excluded
+  /// from semantics, so a lightweight stand-in that looks like the page is
+  /// enough. When null, the real page widget is reused.
+  final Widget Function(BuildContext context, int index)? loopSentinelBuilder;
+
   @override
   State<CyclicTabBarView> createState() => _TabBarViewState();
 }
@@ -2963,6 +3698,20 @@ class _TabBarViewState extends State<CyclicTabBarView> {
   // dispose the old one. In that case the old controller's animation will be
   // null and should not be accessed.
   bool get _controllerIsValid => _controller?.animation != null;
+
+  // Looping renders a sentinel copy of the last page before the first and of
+  // the first page after the last, so a swipe past either end has somewhere
+  // to go. Once such a swipe settles on a sentinel the view jumps to the real
+  // page, which paints the same thing. Page indices in the PageView are
+  // therefore offset by one from the controller's indices while looping.
+  bool get _loops => widget.loop && widget.children.length > 1;
+
+  int get _pageOffset => _loops ? 1 : 0;
+
+  int _wrapIndex(int index) {
+    final int length = widget.children.length;
+    return ((index % length) + length) % length;
+  }
 
   void _updateTabController() {
     final TabController? newController =
@@ -3026,11 +3775,11 @@ class _TabBarViewState extends State<CyclicTabBarView> {
     _currentIndex = _controller!.index;
     if (_pageController == null) {
       _pageController = PageController(
-        initialPage: _currentIndex!,
+        initialPage: _currentIndex! + _pageOffset,
         viewportFraction: widget.viewportFraction,
       );
     } else {
-      _pageController!.jumpToPage(_currentIndex!);
+      _pageController!.jumpToPage(_currentIndex! + _pageOffset);
     }
   }
 
@@ -3040,19 +3789,27 @@ class _TabBarViewState extends State<CyclicTabBarView> {
     if (widget.controller != oldWidget.controller) {
       _updateTabController();
       _currentIndex = _controller!.index;
-      _jumpToPage(_currentIndex!);
+      _jumpToPage(_currentIndex! + _pageOffset);
     }
     if (widget.viewportFraction != oldWidget.viewportFraction) {
       _pageController?.dispose();
       _pageController = PageController(
-        initialPage: _currentIndex!,
+        initialPage: _currentIndex! + _pageOffset,
         viewportFraction: widget.viewportFraction,
       );
     }
+    final bool loopChanged =
+        widget.loop != oldWidget.loop ||
+        widget.children.length != oldWidget.children.length;
     // While a warp is under way, we stop updating the tab page contents.
     // This is tracked in https://github.com/flutter/flutter/issues/31269.
-    if (widget.children != oldWidget.children && _warpUnderwayCount == 0) {
+    if ((widget.children != oldWidget.children || loopChanged) &&
+        _warpUnderwayCount == 0) {
       _updateChildren();
+    }
+    if (loopChanged && _pageController!.hasClients) {
+      // The sentinel page shifts every real page by one.
+      _jumpToPage(_currentIndex! + _pageOffset);
     }
   }
 
@@ -3068,11 +3825,40 @@ class _TabBarViewState extends State<CyclicTabBarView> {
   }
 
   void _updateChildren() {
-    _childrenWithKey = KeyedSubtree.ensureUniqueKeysForList(
-      widget.children.map<Widget>((Widget child) {
-        return Semantics(role: SemanticsRole.tabPanel, child: child);
-      }).toList(),
-    );
+    final List<Widget> pages = widget.children.map<Widget>((Widget child) {
+      return Semantics(role: SemanticsRole.tabPanel, child: child);
+    }).toList();
+    if (_loops) {
+      final int lastIndex = widget.children.length - 1;
+      Widget sentinel(int index) {
+        final Widget Function(BuildContext, int)? builder =
+            widget.loopSentinelBuilder;
+        if (builder != null) {
+          return Builder(
+            builder: (BuildContext context) => builder(context, index),
+          );
+        }
+        final Widget page = widget.children[index];
+        assert(() {
+          if (page.key is GlobalKey) {
+            throw FlutterError(
+              'CyclicTabBarView(loop: true) needs a loopSentinelBuilder.\n'
+              'The ${index == 0 ? 'first' : 'last'} child carries a GlobalKey, '
+              'and looping builds a second copy of it while a wrap is in '
+              'flight. Provide loopSentinelBuilder to build a stand-in for it.',
+            );
+          }
+          return true;
+        }());
+        return page;
+      }
+
+      // Sentinels are only ever on screen mid-swipe, and never the current
+      // page, so they stay out of the semantics tree.
+      pages.insert(0, ExcludeSemantics(child: sentinel(lastIndex)));
+      pages.add(ExcludeSemantics(child: sentinel(0)));
+    }
+    _childrenWithKey = KeyedSubtree.ensureUniqueKeysForList(pages);
   }
 
   void _handleTabControllerAnimationTick() {
@@ -3087,25 +3873,54 @@ class _TabBarViewState extends State<CyclicTabBarView> {
   }
 
   void _warpToCurrentIndex() {
-    if (!mounted || _pageController!.page == _currentIndex!.toDouble()) {
+    if (!mounted ||
+        _pageController!.page == (_currentIndex! + _pageOffset).toDouble()) {
       return;
     }
 
-    final adjacentDestination =
-        (_currentIndex! - _controller!.previousIndex).abs() == 1;
+    final int previousIndex = _controller!.previousIndex;
+    final int delta = _currentIndex! - previousIndex;
+    final adjacentDestination = delta.abs() == 1;
     if (adjacentDestination) {
       _warpToAdjacentTab(_controller!.animationDuration);
+    } else if (_loops && delta.abs() == widget.children.length - 1) {
+      // First and last tab are neighbours across the wrap: animate onto the
+      // sentinel copy next door, then jump to the real page.
+      _warpAcrossWrap(delta > 0 ? -1 : 1, _controller!.animationDuration);
     } else {
       _warpToNonAdjacentTab(_controller!.animationDuration);
     }
   }
 
-  Future<void> _warpToAdjacentTab(Duration duration) async {
+  Future<void> _warpAcrossWrap(int direction, Duration duration) async {
+    final int sentinelPage =
+        _controller!.previousIndex + _pageOffset + direction;
     if (duration == Duration.zero) {
-      _jumpToPage(_currentIndex!);
+      _jumpToPage(_currentIndex! + _pageOffset);
     } else {
       await _animateToPage(
-        _currentIndex!,
+        sentinelPage,
+        duration: duration,
+        curve: Curves.ease,
+      );
+      if (!mounted) {
+        return;
+      }
+      _jumpToPage(_currentIndex! + _pageOffset);
+    }
+    if (mounted) {
+      setState(() {
+        _updateChildren();
+      });
+    }
+  }
+
+  Future<void> _warpToAdjacentTab(Duration duration) async {
+    if (duration == Duration.zero) {
+      _jumpToPage(_currentIndex! + _pageOffset);
+    } else {
+      await _animateToPage(
+        _currentIndex! + _pageOffset,
         duration: duration,
         curve: Curves.ease,
       );
@@ -3133,20 +3948,21 @@ class _TabBarViewState extends State<CyclicTabBarView> {
       // For motivation, see https://github.com/flutter/flutter/pull/29188 and
       // https://github.com/flutter/flutter/issues/27010#issuecomment-486475152.
       _childrenWithKey = List<Widget>.of(_childrenWithKey, growable: false);
-      final Widget temp = _childrenWithKey[initialPage];
-      _childrenWithKey[initialPage] = _childrenWithKey[previousIndex];
-      _childrenWithKey[previousIndex] = temp;
+      final Widget temp = _childrenWithKey[initialPage + _pageOffset];
+      _childrenWithKey[initialPage + _pageOffset] =
+          _childrenWithKey[previousIndex + _pageOffset];
+      _childrenWithKey[previousIndex + _pageOffset] = temp;
     });
 
     // Make a first jump to the adjacent page.
-    _jumpToPage(initialPage);
+    _jumpToPage(initialPage + _pageOffset);
 
     // Jump or animate to the destination page.
     if (duration == Duration.zero) {
-      _jumpToPage(_currentIndex!);
+      _jumpToPage(_currentIndex! + _pageOffset);
     } else {
       await _animateToPage(
-        _currentIndex!,
+        _currentIndex! + _pageOffset,
         duration: duration,
         curve: Curves.ease,
       );
@@ -3161,7 +3977,7 @@ class _TabBarViewState extends State<CyclicTabBarView> {
 
   void _syncControllerOffset() {
     _controller!.offset = clampDouble(
-      _pageController!.page! - _controller!.index,
+      _pageController!.page! - _pageOffset - _controller!.index,
       -1.0,
       1.0,
     );
@@ -3182,20 +3998,42 @@ class _TabBarViewState extends State<CyclicTabBarView> {
     }
 
     _scrollUnderwayCount += 1;
-    final double page = _pageController!.page!;
+    final double page = _pageController!.page! - _pageOffset;
     if (notification is ScrollUpdateNotification &&
         !_controller!.indexIsChanging) {
       final bool pageChanged = (page - _controller!.index).abs() > 1.0;
       if (pageChanged) {
-        _controller!.index = page.round();
+        _controller!.index = _wrapIndex(page.round());
         _currentIndex = _controller!.index;
       }
       _syncControllerOffset();
     } else if (notification is ScrollEndNotification) {
-      _controller!.index = page.round();
+      final int settledPage = page.round();
+      final int index = _wrapIndex(settledPage);
+      if (_loops && settledPage != index) {
+        // Settled on a sentinel: swap in the identical real page. Deferred,
+        // since this notification comes from the activity change that just
+        // ended the scroll.
+        WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
+          if (!mounted || _pageController == null) {
+            return;
+          }
+          final double? current = _pageController!.page;
+          if (current != null &&
+              (current - (settledPage + _pageOffset)).abs() < 0.5) {
+            _jumpToPage(index + _pageOffset);
+          }
+        });
+      }
+      _controller!.index = index;
       _currentIndex = _controller!.index;
       if (!_controller!.indexIsChanging) {
-        _syncControllerOffset();
+        if (_loops && settledPage != index) {
+          // The sentinel is the real page's stand-in: the wrap is complete.
+          _controller!.offset = 0.0;
+        } else {
+          _syncControllerOffset();
+        }
       }
     }
     _scrollUnderwayCount -= 1;

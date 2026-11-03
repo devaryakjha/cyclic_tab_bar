@@ -1,5 +1,6 @@
 import 'package:cyclic_tab_bar/cyclic_tab_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -193,21 +194,178 @@ void main() {
     await tester.pumpAndSettle();
 
     final Finder scrollable = find.byType(SingleChildScrollView);
-    await tester.drag(scrollable, const Offset(-500, 0));
+    final ScrollPosition position = tester
+        .state<ScrollableState>(find.byType(Scrollable))
+        .position;
+    position.jumpTo(position.maxScrollExtent);
     await tester.pumpAndSettle();
 
+    // The first move only starts the drag; the second pulls 70 px past the
+    // edge over 200 ms, a deliberate pull well short of the 128 px maximum
+    // stretch. Events are stamped because the commit measures the finger's
+    // speed.
     final TestGesture gesture = await tester.startGesture(
       tester.getCenter(scrollable),
     );
-    await gesture.moveBy(const Offset(-70, 0));
-    await tester.pump();
+    await gesture.moveBy(
+      const Offset(-30, 0),
+      timeStamp: const Duration(milliseconds: 50),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await gesture.moveBy(
+      const Offset(-70, 0),
+      timeStamp: const Duration(milliseconds: 250),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('One'), findsNWidgets(2));
 
     await gesture.up();
   });
 
-  testWidgets('dynamic tab labels reset stale cyclic indicator offsets', (
+  testWidgets('cyclic edge stretch respects enableFeedback false', (
+    tester,
+  ) async {
+    final hapticCalls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'HapticFeedback.vibrate') {
+            hapticCalls.add(call);
+          }
+          return null;
+        });
+    addTearDown(() async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DefaultTabController(
+          length: 4,
+          child: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 240,
+                child: CyclicTabBar(
+                  isScrollable: true,
+                  enableFeedback: false,
+                  tabAlignment: TabAlignment.start,
+                  tabs: const [
+                    SizedBox(width: 100, child: Tab(text: 'One')),
+                    SizedBox(width: 100, child: Tab(text: 'Two')),
+                    SizedBox(width: 100, child: Tab(text: 'Three')),
+                    SizedBox(width: 100, child: Tab(text: 'Four')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Finder scrollable = find.byType(SingleChildScrollView);
+    final ScrollPosition position = tester
+        .state<ScrollableState>(find.byType(Scrollable))
+        .position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    // The first move only starts the drag; the second pulls 70 px past the
+    // edge over 200 ms, a deliberate pull well short of the 128 px maximum
+    // stretch. Events are stamped because the commit measures the finger's
+    // speed.
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(scrollable),
+    );
+    await gesture.moveBy(
+      const Offset(-30, 0),
+      timeStamp: const Duration(milliseconds: 50),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await gesture.moveBy(
+      const Offset(-70, 0),
+      timeStamp: const Duration(milliseconds: 250),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('One'), findsNWidgets(2));
+    expect(hapticCalls, isEmpty);
+
+    await gesture.up();
+  });
+
+  testWidgets('extended cyclic tabs exclude duplicate cycle semantics', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DefaultTabController(
+          length: 4,
+          child: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 240,
+                child: CyclicTabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  tabs: const [
+                    SizedBox(width: 100, child: Tab(text: 'One')),
+                    SizedBox(width: 100, child: Tab(text: 'Two')),
+                    SizedBox(width: 100, child: Tab(text: 'Three')),
+                    SizedBox(width: 100, child: Tab(text: 'Four')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Finder scrollable = find.byType(SingleChildScrollView);
+    final ScrollPosition position = tester
+        .state<ScrollableState>(find.byType(Scrollable))
+        .position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    // The first move only starts the drag; the second pulls 70 px past the
+    // edge over 200 ms, a deliberate pull well short of the 128 px maximum
+    // stretch. Events are stamped because the commit measures the finger's
+    // speed.
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(scrollable),
+    );
+    await gesture.moveBy(
+      const Offset(-30, 0),
+      timeStamp: const Duration(milliseconds: 50),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await gesture.moveBy(
+      const Offset(-70, 0),
+      timeStamp: const Duration(milliseconds: 250),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('One'), findsNWidgets(2));
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is ExcludeSemantics && widget.child is MergeSemantics,
+      ),
+      findsNWidgets(4),
+    );
+
+    await gesture.up();
+  });
+
+  testWidgets('dynamic tab labels keep the cyclic extension usable', (
     tester,
   ) async {
     var showCounts = false;
@@ -282,25 +440,48 @@ void main() {
     await tester.pumpAndSettle();
 
     final Finder scrollable = find.byType(SingleChildScrollView);
-    await tester.drag(scrollable, const Offset(-500, 0));
+    final ScrollPosition position = tester
+        .state<ScrollableState>(find.byType(Scrollable))
+        .position;
+    position.jumpTo(position.maxScrollExtent);
     await tester.pumpAndSettle();
 
     final TestGesture gesture = await tester.startGesture(
       tester.getCenter(scrollable),
     );
-    await gesture.moveBy(const Offset(-300, 0));
-    await tester.pump();
-    await gesture.up();
-    await tester.pump();
-
+    await gesture.moveBy(
+      const Offset(-30, 0),
+      timeStamp: const Duration(milliseconds: 50),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await gesture.moveBy(
+      const Offset(-120, 0),
+      timeStamp: const Duration(milliseconds: 350),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('IPO'), findsNWidgets(2));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('IPO'), findsOneWidget);
 
     await tester.tap(find.text('load counts'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Auctions 2'));
-    await tester.pump();
+    // The wrap has settled back to a single strip resting on the pulled-in
+    // first tab, and the relabel does not move it.
+    expect(find.text('IPO 2'), findsOneWidget);
+    expect(
+      tester.getRect(find.text('IPO 2').hitTestable()).left,
+      inInclusiveRange(0.0, 100.0),
+    );
+
+    await tester.tap(find.text('IPO 2').hitTestable());
+    await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
+    expect(
+      DefaultTabController.of(tester.element(find.byType(CyclicTabBar))).index,
+      0,
+    );
   });
 
   testWidgets('dynamic tab width growth keeps selected tab in view', (

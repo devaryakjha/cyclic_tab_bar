@@ -45,10 +45,10 @@ class ExampleHomePage extends StatelessWidget {
     Tab(text: 'Settings'),
   ];
   static const _messages = [
-    'Baseline source copy of Flutter tabs.',
-    'Interaction currently matches Flutter exactly.',
-    'Infinite behavior is intentionally deferred.',
-    'This package will diverge after the baseline is locked.',
+    'Source-synced Flutter tabs with package-owned edge cycling.',
+    'Pull either edge of the scrollable tab strip to reveal the next cycle.',
+    'The tab view keeps Flutter TabBarView-compatible page behavior.',
+    'Fixed-width indicators stay stable across uneven tab widths.',
     'Use this longer strip to feel the edge extension more clearly.',
     'A real scroll distance makes the cyclic reveal easier to judge.',
     'Trackpad and wheel overscroll should now participate too.',

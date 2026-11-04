@@ -3,6 +3,8 @@
 * Add package metadata and GitHub Actions release automation.
 * Update README copy to describe cyclic tab-strip behavior accurately.
 * Respect `enableFeedback: false` when cyclic edge scrolling commits.
+* Give `CyclicTabBarView` the tab bar's heavy haptic when a swipe wraps
+  around with `loop: true`; turn it off with its new `enableFeedback`.
 * Exclude duplicated cyclic edge tabs from semantics while keeping them visible.
 * Fix the edge stretch and a committed cyclic extension vanishing when the
   parent rebuilds with an equivalent `tabs` list (fresh `Tab` widgets with

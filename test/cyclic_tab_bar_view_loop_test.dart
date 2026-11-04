@@ -1,5 +1,6 @@
 import 'package:cyclic_tab_bar/cyclic_tab_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget _build({
@@ -7,6 +8,7 @@ Widget _build({
   required bool loop,
   int count = 4,
   bool scrollableStrip = false,
+  bool? enableFeedback,
 }) {
   return MaterialApp(
     theme: ThemeData(platform: TargetPlatform.android),
@@ -34,6 +36,7 @@ Widget _build({
               child: CyclicTabBarView(
                 controller: controller,
                 loop: loop,
+                enableFeedback: enableFeedback,
                 children: [
                   for (var i = 0; i < count; i++) Center(child: Text('P$i')),
                 ],
@@ -51,7 +54,60 @@ Future<void> _swipe(WidgetTester tester, double dx) async {
   await tester.pumpAndSettle();
 }
 
+List<MethodCall> _recordHaptics() {
+  final calls = <MethodCall>[];
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'HapticFeedback.vibrate') calls.add(call);
+        return null;
+      });
+  addTearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null);
+  });
+  return calls;
+}
+
 void main() {
+  testWidgets('a swipe that wraps gives a heavy haptic', (tester) async {
+    final haptics = _recordHaptics();
+    final controller = TabController(length: 4, vsync: tester, initialIndex: 2);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(_build(controller: controller, loop: true));
+    await tester.pumpAndSettle();
+
+    // An ordinary page change stays silent.
+    await _swipe(tester, -200);
+    expect(controller.index, 3);
+    expect(haptics, isEmpty);
+
+    await _swipe(tester, -200);
+    expect(controller.index, 0);
+    expect(haptics.map((call) => call.arguments), [
+      'HapticFeedbackType.heavyImpact',
+    ]);
+
+    // A wrap driven by the controller, like a tab tap, stays silent.
+    await tester.tap(find.text('T3'));
+    await tester.pumpAndSettle();
+    expect(controller.index, 3);
+    expect(haptics, hasLength(1));
+  });
+
+  testWidgets('wrap haptics respect enableFeedback false', (tester) async {
+    final haptics = _recordHaptics();
+    final controller = TabController(length: 4, vsync: tester, initialIndex: 3);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      _build(controller: controller, loop: true, enableFeedback: false),
+    );
+    await tester.pumpAndSettle();
+
+    await _swipe(tester, -200);
+    expect(controller.index, 0);
+    expect(haptics, isEmpty);
+  });
+
   testWidgets('pages do not loop by default', (tester) async {
     final controller = TabController(length: 4, vsync: tester, initialIndex: 3);
     addTearDown(controller.dispose);

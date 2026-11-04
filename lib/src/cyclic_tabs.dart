@@ -3614,6 +3614,7 @@ class CyclicTabBarView extends StatefulWidget {
     this.clipBehavior = Clip.hardEdge,
     this.loop = false,
     this.loopSentinelBuilder,
+    this.enableFeedback,
   });
 
   /// This widget's selection and animation state.
@@ -3680,6 +3681,15 @@ class CyclicTabBarView extends StatefulWidget {
   /// from semantics, so a lightweight stand-in that looks like the page is
   /// enough. When null, the real page widget is reused.
   final Widget Function(BuildContext context, int index)? loopSentinelBuilder;
+
+  /// Whether a swipe that wraps around gives haptic feedback, like a
+  /// [CyclicTabBar] pulled past its edge, when [loop] is true.
+  ///
+  /// Wraps driven by the [controller], such as a tap on the paired tab bar,
+  /// stay silent.
+  ///
+  /// Defaults to true.
+  final bool? enableFeedback;
 
   @override
   State<CyclicTabBarView> createState() => _TabBarViewState();
@@ -4011,6 +4021,9 @@ class _TabBarViewState extends State<CyclicTabBarView> {
       final int settledPage = page.round();
       final int index = _wrapIndex(settledPage);
       if (_loops && settledPage != index) {
+        if (widget.enableFeedback ?? true) {
+          HapticFeedback.heavyImpact();
+        }
         // Settled on a sentinel: swap in the identical real page. Deferred,
         // since this notification comes from the activity change that just
         // ended the scroll.

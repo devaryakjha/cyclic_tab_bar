@@ -1160,6 +1160,60 @@ void main() {
       expect(_visibleLefts(tester, 'T0', 300), isNotEmpty);
     });
 
+    // Released past halfway it lands on the last page; short of it, it
+    // springs back to the first.
+    for (final (distance, landing) in [(300.0, 5), (120.0, 0)]) {
+      testWidgets('a looping page swipe held across the wrap keeps the strip '
+          'still (lands on $landing)', (tester) async {
+        final controller = TabController(length: 6, vsync: tester);
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          _buildStrip(
+            platform: TargetPlatform.android,
+            tabCount: 6,
+            tabWidth: 70,
+            controller: controller,
+            below: CyclicTabBarView(
+              controller: controller,
+              loop: true,
+              enableFeedback: false,
+              children: [
+                for (var i = 0; i < 6; i++) Center(child: Text('P$i')),
+              ],
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Swipe from the first page towards the last and hold halfway.
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byType(CyclicTabBarView)),
+        );
+        for (var i = 0; i < 10; i++) {
+          await gesture.moveBy(Offset(distance / 10, 0));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(controller.animation!.value, lessThan(0.0));
+        // The strip has widened to follow the page past its first tab.
+        expect(_isExtended(tester, 6 * 94.0 - 300.0), isTrue);
+
+        // Holding still, with the odd tremor, must leave the strip where the
+        // swipe put it rather than settling and re-extending it over and over.
+        final ScrollPosition strip = _stripPosition(tester);
+        final double held = strip.pixels;
+        for (var i = 0; i < 30; i++) {
+          await gesture.moveBy(Offset(i.isEven ? 0.5 : -0.5, 0));
+          await tester.pump(const Duration(milliseconds: 16));
+          expect(strip.pixels, closeTo(held, 2.0), reason: 'frame $i');
+        }
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(controller.index, landing);
+        _expectNormalRestingStrip(tester, tabCount: 6);
+      });
+    }
+
     testWidgets('after a pull-wrap, paging back keeps the selected tab', (
       tester,
     ) async {

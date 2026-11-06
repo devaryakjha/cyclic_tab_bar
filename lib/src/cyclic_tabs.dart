@@ -2407,6 +2407,7 @@ class _TabBarState extends State<CyclicTabBar>
     if (_stripMode == _CyclicTabStripMode.normal ||
         _extensionCommitPending ||
         _normalizationPending ||
+        _pageViewIsMidWrap ||
         _scrollController == null ||
         !_scrollController!.hasClients) {
       return;
@@ -2439,7 +2440,8 @@ class _TabBarState extends State<CyclicTabBar>
       final ScrollPosition position = _scrollController!.position;
       // Recheck now: the user may have started scrolling again, in which case
       // the next idle transition settles the strip instead.
-      if (position.isScrollingNotifier.value && !interruptFling) {
+      if (_pageViewIsMidWrap ||
+          (position.isScrollingNotifier.value && !interruptFling)) {
         return;
       }
       final resting = _cyclicRestingPosition(position);
@@ -3063,6 +3065,16 @@ class _TabBarState extends State<CyclicTabBar>
     }
   }
 
+  // Whether a looping page view holds the controller's value past the first
+  // or last tab. The strip is following it there and may not be still yet,
+  // even though the strip itself isn't scrolling: settling it would collapse
+  // the extension the next page frame needs, and the two would alternate for
+  // as long as the swipe is held.
+  bool get _pageViewIsMidWrap {
+    final double? value = _controller?.animation?.value;
+    return value != null && (value < 0.0 || value > widget.tabs.length - 1);
+  }
+
   // A looping page view drives the controller's value past the first or last
   // tab. The plain strip has no tab there to follow, so extend it (at the
   // same picture) and let the cyclic neighbours take over.
@@ -3107,6 +3119,10 @@ class _TabBarState extends State<CyclicTabBar>
       _currentIndex = _controller!.index;
       if (widget.isScrollable) {
         _scrollToCurrentIndex();
+        // A page view that wrapped lands with the strip already on the new
+        // tab, so that scroll has nowhere to go and no idle transition will
+        // follow to settle the extended strip.
+        _settleCyclicExtensionIfIdle(animate: true);
       }
     }
     setState(() {

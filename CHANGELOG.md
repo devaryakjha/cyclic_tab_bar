@@ -41,4 +41,8 @@
   the last page continues to the first and vice versa, the indicator and
   label styles follow the wrap, and a paired overflowing `CyclicTabBar`
   extends itself for it. Off by default.
+* Fix a paired `CyclicTabBar` moving back and forth while a looping
+  `CyclicTabBarView` swipe is held across the wrap: the extended strip now
+  waits for the page to come back within the first and last tab before it
+  settles, and settles as soon as a wrapping swipe lands.
 * Point package metadata at github.com/devaryakjha/cyclic_tab_bar.

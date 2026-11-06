@@ -45,4 +45,8 @@
   `CyclicTabBarView` swipe is held across the wrap: the extended strip now
   waits for the page to come back within the first and last tab before it
   settles, and settles as soon as a wrapping swipe lands.
+* Fix a looping page swipe across the wrap leaving a padded strip's first
+  or last tab a padding's width past its edge: the extended strip now aims
+  where the plain strip shows the tab, padding included, and collapses in
+  place there.
 * Point package metadata at github.com/devaryakjha/cyclic_tab_bar.

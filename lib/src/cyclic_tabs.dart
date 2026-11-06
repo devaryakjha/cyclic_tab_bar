@@ -2361,6 +2361,27 @@ class _TabBarState extends State<CyclicTabBar>
       }
     }
 
+    // Resting on the selected tab's target (where a page wrap leaves the
+    // strip): that is already the picture the normal strip shows for it, but
+    // for the padding beyond the seam, so collapse in place rather than
+    // easing into one copy first and sliding back out after.
+    final int selectedRenderIndex = _selectedRenderIndex;
+    if ((metrics.pixels - _tabCenteredScrollOffset(selectedRenderIndex))
+            .abs() <=
+        _kCyclicNormalizationEpsilon) {
+      final int copy = selectedRenderIndex ~/ widget.tabs.length;
+      return (
+        normalPixels: clampDouble(
+          metrics.pixels - copy * seam,
+          0.0,
+          normalMaxExtent,
+        ),
+        extendedPixels: metrics.pixels,
+        collapseNow: true,
+        stripEdgePixels: null,
+      );
+    }
+
     final bool restOnPulledTabs = _wrapSelectedIndexAtCommit == _currentIndex;
     final int copy = restOnPulledTabs
         ? switch (_stripMode) {
@@ -2966,18 +2987,21 @@ class _TabBarState extends State<CyclicTabBar>
         _singleCycleTabStripWidth == 0.0) {
       return offset;
     }
-    // While extended, keep the target inside the copy that holds the tab so
-    // the strip comes to rest showing only what the normal strip can show,
-    // and the collapse that follows is invisible.
+    // While extended, aim where the normal strip would show the tab, shifted
+    // into the copy that holds it, so the strip comes to rest on the picture
+    // it keeps once collapsed, padding included. Clamping to the copy alone
+    // left the first or last tab a padding's width past the strip's edge.
     final int copy = index ~/ widget.tabs.length;
-    final double paddingStart = _paddingStart(textDirection);
-    final (double low, double high) = switch (copy) {
-      0 => (
-        minExtent,
-        paddingStart + _singleCycleTabStripWidth - viewportWidth,
-      ),
-      _ => (paddingStart + _singleCycleTabStripWidth, maxExtent),
-    };
+    final double seam = _singleCycleTabStripWidth;
+    final (double paddingStart, double paddingEnd) = _resolvedScrollPadding(
+      textDirection,
+    );
+    final double normalMaxExtent = math.max(
+      0.0,
+      seam + paddingStart + paddingEnd - viewportWidth,
+    );
+    final double low = math.max(minExtent, copy * seam);
+    final double high = math.min(maxExtent, copy * seam + normalMaxExtent);
     return high < low ? offset : clampDouble(offset, low, high);
   }
 

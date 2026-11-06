@@ -1214,6 +1214,71 @@ void main() {
       });
     }
 
+    testWidgets('a page wrap lands the padded strip at its end and start '
+        'without sliding after', (tester) async {
+      final controller = TabController(length: 6, vsync: tester);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        _buildStrip(
+          platform: TargetPlatform.android,
+          tabCount: 6,
+          tabWidth: 70,
+          tabAlignment: TabAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          controller: controller,
+          below: CyclicTabBarView(
+            controller: controller,
+            loop: true,
+            enableFeedback: false,
+            children: [for (var i = 0; i < 6; i++) Center(child: Text('P$i'))],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final ScrollPosition strip = _stripPosition(tester);
+      final ScrollPosition pages = tester
+          .state<ScrollableState>(
+            find.descendant(
+              of: find.byType(CyclicTabBarView),
+              matching: find.byType(Scrollable),
+            ),
+          )
+          .position;
+      expect(strip.pixels, 0.0);
+
+      // Where the strip is once the pages stop: it should not move after.
+      Future<double> stripWhenPagesStop(Offset swipe) async {
+        await tester.fling(find.byType(CyclicTabBarView), swipe, 1500);
+        await tester.pump();
+        while (pages.isScrollingNotifier.value) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.pump();
+        final double landed = strip.pixels % (6 * 94.0);
+        await tester.pumpAndSettle();
+        return landed;
+      }
+
+      // First page back to the last: the strip lands at its end, trailing
+      // padding showing, as it does when the last tab is selected directly.
+      final double landedOnLast = await stripWhenPagesStop(
+        const Offset(200, 0),
+      );
+      expect(controller.index, 5);
+      _expectNormalRestingStrip(tester, tabCount: 6);
+      expect(strip.pixels, moreOrLessEquals(strip.maxScrollExtent));
+      expect(landedOnLast, closeTo(strip.pixels, 0.5));
+
+      // And on to the first again: at its start, leading padding showing.
+      final double landedOnFirst = await stripWhenPagesStop(
+        const Offset(-200, 0),
+      );
+      expect(controller.index, 0);
+      _expectNormalRestingStrip(tester, tabCount: 6);
+      expect(strip.pixels, moreOrLessEquals(0.0));
+      expect(landedOnFirst, closeTo(0.0, 0.5));
+    });
+
     testWidgets('after a pull-wrap, paging back keeps the selected tab', (
       tester,
     ) async {

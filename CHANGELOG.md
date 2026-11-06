@@ -49,4 +49,9 @@
   or last tab a padding's width past its edge: the extended strip now aims
   where the plain strip shows the tab, padding included, and collapses in
   place there.
+* Fix a strip barely wider than its viewport stopping short during a
+  looping page swipe across the wrap, then sliding into place: following
+  from the copy of the selected tab nearest the viewport could ask for a
+  neighbour off the end of the strip, which threw on every frame. The
+  strip now follows from the copy beside the seam.
 * Point package metadata at github.com/devaryakjha/cyclic_tab_bar.

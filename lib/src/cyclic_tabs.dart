@@ -3046,11 +3046,24 @@ class _TabBarState extends State<CyclicTabBar>
     if (!_tabOffsetsMatchRenderedTabs) {
       return;
     }
-    final int currentRenderIndex = _selectedRenderIndex;
     // While extended, the neighbours of the first and last tab are the
     // adjacent copies' last and first tab, so a page bounce past either end
     // (or a looping tab view) moves the strip the natural way.
     final bool cyclicNeighbours = _stripMode != _CyclicTabStripMode.normal;
+    int currentRenderIndex = _selectedRenderIndex;
+    if (cyclicNeighbours) {
+      // The copy nearest the viewport can be the one whose neighbour toward
+      // the wrap is off the strip: on a strip barely wider than the viewport,
+      // the far copy of the selected tab comes nearer as the strip follows
+      // the page. Follow from the copy beside the seam instead.
+      final int tabCount = widget.tabs.length;
+      final double toward = _controller!.animation!.value - _controller!.index;
+      if (toward > 0 && currentRenderIndex + 1 > maxTabIndex) {
+        currentRenderIndex -= tabCount;
+      } else if (toward < 0 && currentRenderIndex - 1 < 0) {
+        currentRenderIndex += tabCount;
+      }
+    }
     final double? leadingPosition = cyclicNeighbours || _currentIndex! > 0
         ? _tabCenteredScrollOffset(currentRenderIndex - 1)
         : null;

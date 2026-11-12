@@ -979,6 +979,7 @@ class CyclicTabBar extends StatefulWidget implements PreferredSizeWidget {
     this.mouseCursor,
     this.enableFeedback,
     this.onTap,
+    this.beforeTap,
     this.onHover,
     this.onFocusChange,
     this.physics,
@@ -1037,6 +1038,7 @@ class CyclicTabBar extends StatefulWidget implements PreferredSizeWidget {
     this.mouseCursor,
     this.enableFeedback,
     this.onTap,
+    this.beforeTap,
     this.onHover,
     this.onFocusChange,
     this.physics,
@@ -1321,6 +1323,15 @@ class CyclicTabBar extends StatefulWidget implements PreferredSizeWidget {
   /// callbacks should not make changes to the TabController since that would
   /// interfere with the default tap handler.
   final ValueChanged<int>? onTap;
+
+  /// An optional callback that's called when a tab is tapped, before the
+  /// [TabController] moves to it.
+  ///
+  /// If it returns a future, the tab is selected once that future completes,
+  /// so the app can finish something first, such as collapsing a panel over
+  /// the tabs. Returning null selects the tab right away. [onTap] is called
+  /// once the tab is selected.
+  final Future<void>? Function(int index)? beforeTap;
 
   /// An optional callback that's called when a [Tab]'s hover state in the
   /// [CyclicTabBar] changes.
@@ -3257,9 +3268,23 @@ class _TabBarState extends State<CyclicTabBar>
   }
 
   void _handleTap(_RenderedTabEntry entry) {
-    assert(entry.sourceIndex >= 0 && entry.sourceIndex < widget.tabs.length);
-    _controller!.animateTo(entry.sourceIndex);
-    widget.onTap?.call(entry.sourceIndex);
+    final index = entry.sourceIndex;
+    assert(index >= 0 && index < widget.tabs.length);
+    final pending = widget.beforeTap?.call(index);
+    if (pending == null) {
+      _selectTapped(index);
+      return;
+    }
+    pending.then((_) {
+      // The tabs may have changed while the app finished its work.
+      if (!mounted || index >= widget.tabs.length) return;
+      _selectTapped(index);
+    });
+  }
+
+  void _selectTapped(int index) {
+    _controller!.animateTo(index);
+    widget.onTap?.call(index);
   }
 
   Widget _buildStyledTab(

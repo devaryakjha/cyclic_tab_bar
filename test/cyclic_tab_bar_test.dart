@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cyclic_tab_bar/cyclic_tab_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,6 +45,47 @@ void main() {
 
     expect(find.text('Explore panel'), findsOneWidget);
     expect(find.text('Home panel'), findsNothing);
+  });
+
+  testWidgets('beforeTap holds the tab change until its future completes', (
+    tester,
+  ) async {
+    final controller = TabController(length: 3, vsync: const TestVSync());
+    addTearDown(controller.dispose);
+    final gate = Completer<void>();
+    final asked = <int>[];
+    final tapped = <int>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CyclicTabBar(
+            controller: controller,
+            beforeTap: (index) {
+              asked.add(index);
+              return gate.future;
+            },
+            onTap: tapped.add,
+            tabs: const [
+              Tab(text: 'Home'),
+              Tab(text: 'Explore'),
+              Tab(text: 'Profile'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Explore'));
+    await tester.pumpAndSettle();
+    expect(asked, [1]);
+    expect(controller.index, 0);
+    expect(tapped, isEmpty);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(controller.index, 1);
+    expect(tapped, [1]);
   });
 
   testWidgets(

@@ -177,6 +177,64 @@ void main() {
   });
 
   group('one deliberate pull wraps once, then the strip has edges again', () {
+    testWidgets('a pull-wrap on a padded strip eases straight to its edge', (
+      tester,
+    ) async {
+      // Mrinal (Kite QA): the strip eased the pulled-in tabs flush against
+      // the viewport edge, collapsed, then slid back by the padding.
+      await tester.pumpWidget(
+        _buildStrip(
+          platform: TargetPlatform.android,
+          tabCount: 6,
+          tabWidth: 70,
+          tabAlignment: TabAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Left edge of the copy of [label] inside the viewport, frame by frame
+      // until the strip settles.
+      Future<List<double>> track(String label) async {
+        final lefts = <double>[];
+        for (var i = 0; i < 120; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          final visible = _visibleLefts(tester, label, 300);
+          if (visible.isNotEmpty) lefts.add(visible.single);
+        }
+        await tester.pumpAndSettle();
+        return lefts;
+      }
+
+      void expectOneWay(List<double> lefts, {required bool rightward}) {
+        for (var i = 1; i < lefts.length; i++) {
+          final double step = lefts[i] - lefts[i - 1];
+          expect(
+            rightward ? step : -step,
+            greaterThanOrEqualTo(-0.01),
+            reason: 'frame $i moved back: ${lefts[i - 1]} -> ${lefts[i]}',
+          );
+        }
+      }
+
+      // Leading: pull the start rightward; the last tab comes in and the
+      // strip rests at its end, trailing padding showing.
+      var gesture = await _pull(tester, 150);
+      await gesture.up(timeStamp: _pullElapsed);
+      expectOneWay(await track('T5'), rightward: true);
+      _expectNormalRestingStrip(tester, tabCount: 6);
+      final ScrollPosition strip = _stripPosition(tester);
+      expect(strip.pixels, moreOrLessEquals(strip.maxScrollExtent));
+
+      // Trailing: pull the end leftward; the first tab comes in and the
+      // strip rests at its start, leading padding showing.
+      gesture = await _pull(tester, -150);
+      await gesture.up(timeStamp: _pullElapsed);
+      expectOneWay(await track('T0'), rightward: false);
+      _expectNormalRestingStrip(tester, tabCount: 6);
+      expect(_stripPosition(tester).pixels, moreOrLessEquals(0.0));
+    });
+
     testWidgets('clamping: a held pull past the threshold wraps exactly once', (
       tester,
     ) async {

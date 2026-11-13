@@ -1579,10 +1579,6 @@ class _TabBarState extends State<CyclicTabBar>
   // down with the overscroll instead of switching curves.
   double _releaseStretchExtent = 0.0;
   double _releaseOverscroll = 0.0;
-  // After a pull-wrap comes to rest on the pulled-in tabs, where the normal
-  // strip should ease to once collapsed: its start (0) or its end, so the
-  // tabs sit where they do when the screen opens, padding included.
-  double? _restAtStripEdge;
   // Effective strip padding, resolved once per build (see
   // _effectiveScrollPadding).
   EdgeInsetsGeometry? _effectiveScrollPaddingValue;
@@ -1994,7 +1990,6 @@ class _TabBarState extends State<CyclicTabBar>
       _stripMode = _CyclicTabStripMode.normal;
       _extensionCommitPending = false;
       _normalizationPending = false;
-      _restAtStripEdge = null;
       _pendingPixelsCorrection = null;
       _syncRenderedTabArtifacts();
       _syncStretchPreviewArtifacts();
@@ -2284,7 +2279,6 @@ class _TabBarState extends State<CyclicTabBar>
     bool settleAtOnce = false,
   }) {
     _extensionCommitPending = true;
-    _restAtStripEdge = null;
     _schedulePixelsCorrection(targetPixels);
     _updateStripMode(stripMode);
 
@@ -2318,18 +2312,17 @@ class _TabBarState extends State<CyclicTabBar>
   // one copy, or in the padding beyond the strip's ends), so the collapse is
   // invisible; otherwise `extendedPixels` is the position to animate the
   // extended strip to first. After a pull whose selection has not changed
-  // that is the wrapped-to copy with its edge tab flush against the viewport
-  // edge: the tabs the user pulled in. Otherwise (the page view moved the
+  // that is the picture the normal strip shows at its start or end, padding
+  // included: the tabs the user pulled in, where they sit when the screen
+  // opens. Easing there in one go and collapsing in place swaps only the
+  // padding's width beyond the seam; easing to the copy's flush edge first
+  // overshot, and the strip slid back by the padding after the collapse.
+  // Otherwise (the page view moved the
   // selection, or drove the wrap itself) it is the nearest position inside
   // the copy that holds the copy of the selected tab nearest the viewport, so
   // the selected tab stays in view and the strip moves as little as
   // possible.
-  ({
-    double normalPixels,
-    double extendedPixels,
-    bool collapseNow,
-    double? stripEdgePixels,
-  })?
+  ({double normalPixels, double extendedPixels, bool collapseNow})?
   _cyclicRestingPosition(ScrollMetrics metrics) {
     if (_stripMode == _CyclicTabStripMode.normal ||
         _singleCycleTabStripWidth == 0.0 ||
@@ -2367,7 +2360,6 @@ class _TabBarState extends State<CyclicTabBar>
           ),
           extendedPixels: metrics.pixels,
           collapseNow: true,
-          stripEdgePixels: null,
         );
       }
     }
@@ -2389,24 +2381,26 @@ class _TabBarState extends State<CyclicTabBar>
         ),
         extendedPixels: metrics.pixels,
         collapseNow: true,
-        stripEdgePixels: null,
       );
     }
 
     final bool restOnPulledTabs = _wrapSelectedIndexAtCommit == _currentIndex;
-    final int copy = restOnPulledTabs
-        ? switch (_stripMode) {
-            _CyclicTabStripMode.extendedTrailing => 1,
-            _CyclicTabStripMode.extendedLeading ||
-            _CyclicTabStripMode.normal => 0,
-          }
-        : _renderIndexFor(_currentIndex!) ~/ widget.tabs.length;
+    if (restOnPulledTabs) {
+      final int copy = switch (_stripMode) {
+        _CyclicTabStripMode.extendedTrailing => 1,
+        _CyclicTabStripMode.extendedLeading || _CyclicTabStripMode.normal => 0,
+      };
+      final double normalPixels = copy == 1 ? 0.0 : normalMaxExtent;
+      return (
+        normalPixels: normalPixels,
+        extendedPixels: normalPixels + copy * seam,
+        collapseNow: false,
+      );
+    }
+    final int copy = _renderIndexFor(_currentIndex!) ~/ widget.tabs.length;
     final (double low, double high) = copyRange(copy);
     final double extendedPixels = high < low
         ? low
-        : restOnPulledTabs
-        // The wrapped-to copy's edge tab flush against the viewport edge.
-        ? (copy == 1 ? low : high)
         : clampDouble(metrics.pixels, low, high);
     return (
       normalPixels: clampDouble(
@@ -2416,13 +2410,6 @@ class _TabBarState extends State<CyclicTabBar>
       ),
       extendedPixels: extendedPixels,
       collapseNow: false,
-      // The pulled-in tabs rest where they sit when the screen opens: at the
-      // strip's start (leading padding showing) or end. That picture has no
-      // counterpart in the extended strip when there is padding, so it is
-      // reached after the collapse, in single-strip coordinates.
-      stripEdgePixels: restOnPulledTabs
-          ? (copy == 1 ? 0.0 : normalMaxExtent)
-          : null,
     );
   }
 
@@ -2484,7 +2471,6 @@ class _TabBarState extends State<CyclicTabBar>
         _collapseCyclicExtension(resting.normalPixels);
         return;
       }
-      _restAtStripEdge = resting.stripEdgePixels;
       final double target = clampDouble(
         resting.extendedPixels,
         position.minScrollExtent,
@@ -2497,8 +2483,7 @@ class _TabBarState extends State<CyclicTabBar>
         return;
       }
       // The collapse follows from the idle transition at the end of this
-      // animation. Any ease to the strip's edge after it runs the other way,
-      // so this one decelerates into the collapse rather than easing in.
+      // animation.
       _scrollController!.animateTo(
         target,
         duration: kTabScrollDuration,
@@ -2508,37 +2493,13 @@ class _TabBarState extends State<CyclicTabBar>
   }
 
   // Replaces the extended strip with the normal one at [normalPixels], which
-  // shows the same picture, and then, after a pull-wrap, eases on to the
-  // strip's start or end so the pulled-in tabs sit where they do when the
-  // screen opens.
+  // shows the same picture.
   void _collapseCyclicExtension(double normalPixels) {
-    final double? stripEdge = _restAtStripEdge;
-    _restAtStripEdge = null;
     _normalizationPending = true;
     _schedulePixelsCorrection(normalPixels);
     _updateStripMode(_CyclicTabStripMode.normal);
     WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
       _normalizationPending = false;
-      if (stripEdge == null ||
-          !mounted ||
-          _scrollController == null ||
-          !_scrollController!.hasClients) {
-        return;
-      }
-      final ScrollPosition position = _scrollController!.position;
-      final double target = clampDouble(
-        stripEdge,
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      );
-      if ((position.pixels - target).abs() <= _kCyclicNormalizationEpsilon) {
-        return;
-      }
-      position.animateTo(
-        target,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-      );
     });
   }
 
@@ -2692,13 +2653,6 @@ class _TabBarState extends State<CyclicTabBar>
     if (_stripMode != _CyclicTabStripMode.normal) {
       if (_extensionCommitPending) {
         return false;
-      }
-      if (notification is ScrollUpdateNotification &&
-          notification.dragDetails != null) {
-        // The user took over from the resting animation: wherever this
-        // scroll ends up is where the strip rests, not the strip's edge.
-        // (A drag that starts mid-animation sends no ScrollStart.)
-        _restAtStripEdge = null;
       }
       if (isIdleNotification) {
         // A bare ScrollEnd also follows every jumpTo that keeps the strip in

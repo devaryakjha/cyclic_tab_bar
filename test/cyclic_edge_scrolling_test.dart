@@ -177,6 +177,55 @@ void main() {
   });
 
   group('one deliberate pull wraps once, then the strip has edges again', () {
+    for (final (name, height) in [
+      ('a 36px slot', 36.0),
+      ('its own size', null),
+    ]) {
+      testWidgets('the stretch preview lines up with the strip in $name', (
+        tester,
+      ) async {
+        // Kite QA: the incoming tab sat a pixel or two low while previewed
+        // and jumped up as the wrap committed.
+        final strip = CyclicTabBar(
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          dividerColor: Colors.transparent,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+          tabs: [
+            for (var i = 0; i < 6; i++)
+              Tab(height: height ?? 46, child: Text('Tab number $i')),
+          ],
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(platform: TargetPlatform.iOS),
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 300,
+                  height: height,
+                  child: DefaultTabController(length: 6, child: strip),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // A short pull past the start: the last tab shows as a preview.
+        final gesture = await _pull(tester, 30);
+        expect(find.text('Tab number 5'), findsWidgets);
+        final tops = {
+          for (final e in find.byType(RichText).evaluate())
+            tester.getTopLeft(find.byWidget(e.widget)).dy,
+        };
+        expect(tops, hasLength(1), reason: 'label tops: $tops');
+        await gesture.up(timeStamp: _pullElapsed);
+        await tester.pumpAndSettle();
+      });
+    }
+
     testWidgets('a pull-wrap on a padded strip eases straight to its edge', (
       tester,
     ) async {

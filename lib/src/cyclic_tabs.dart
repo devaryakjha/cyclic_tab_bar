@@ -2865,6 +2865,12 @@ class _TabBarState extends State<CyclicTabBar>
           ),
         ),
       );
+      // The strip's own tabs keep the indicator's space below the label; the
+      // preview must too, or its labels sit lower and jump up on commit.
+      previewTab = Padding(
+        padding: EdgeInsets.only(bottom: widget.indicatorWeight),
+        child: previewTab,
+      );
       previewTab = _buildStyledTab(
         previewTab,
         index == _currentIndex,
@@ -2885,32 +2891,43 @@ class _TabBarState extends State<CyclicTabBar>
 
     return ExcludeSemantics(
       child: IgnorePointer(
-        child: Align(
-          alignment: previewOnLeft
-              ? Alignment.centerLeft
-              : Alignment.centerRight,
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: previewOnLeft ? previewInset : 0.0,
-              right: previewOnLeft ? 0.0 : previewInset,
-            ),
-            child: SizedBox(
-              width: previewWidth,
-              height: widget.preferredSize.height,
-              child: ClipRect(
-                child: OverflowBox(
-                  minWidth: 0.0,
-                  maxWidth: double.infinity,
-                  minHeight: widget.preferredSize.height,
-                  maxHeight: widget.preferredSize.height,
-                  alignment: previewOnLeft
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: previewStrip,
+        // As tall as the strip itself (the preview fills the strip's Stack),
+        // which a parent may hold below preferredSize: a preview laid out at
+        // preferredSize and centred sat off the strip's labels by half the
+        // difference.
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double height = constraints.hasBoundedHeight
+                ? constraints.maxHeight
+                : widget.preferredSize.height;
+            return Align(
+              alignment: previewOnLeft
+                  ? Alignment.centerLeft
+                  : Alignment.centerRight,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: previewOnLeft ? previewInset : 0.0,
+                  right: previewOnLeft ? 0.0 : previewInset,
+                ),
+                child: SizedBox(
+                  width: previewWidth,
+                  height: height,
+                  child: ClipRect(
+                    child: OverflowBox(
+                      minWidth: 0.0,
+                      maxWidth: double.infinity,
+                      minHeight: height,
+                      maxHeight: height,
+                      alignment: previewOnLeft
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: previewStrip,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -3543,9 +3560,11 @@ class _TabBarState extends State<CyclicTabBar>
           fit: StackFit.passthrough,
           children: <Widget>[
             if (_hasStretchPreview)
-              Padding(
-                padding: effectivePadding ?? EdgeInsets.zero,
-                child: _buildStretchPreview(tabBarTheme, textDirection),
+              Positioned.fill(
+                child: Padding(
+                  padding: effectivePadding ?? EdgeInsets.zero,
+                  child: _buildStretchPreview(tabBarTheme, textDirection),
+                ),
               ),
             ScrollConfiguration(
               // The scrolling tabs should not show an overscroll indicator.
